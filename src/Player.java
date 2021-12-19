@@ -20,6 +20,7 @@ public class Player {
         public OtherPlayer(String name) {
             this.name = name;
             this.numPoints = 0;
+            System.out.println("New player connected: " + this.name);
         }
     }
     
@@ -30,6 +31,8 @@ public class Player {
     private ArrayList<OtherPlayer> otherPlayers;
     private ArrayList<CardPile> tempMoveState;
     private char gamePhase;
+    private int roundNum;
+    private int turn;
 
     public Player(String ip, String name) {
         // Set up the communicator with the given ip
@@ -37,6 +40,8 @@ public class Player {
         this.otherPlayers = new ArrayList<OtherPlayer>();
         this.communicator = new Communicator(ip, name);
         this.gamePhase = 'L';
+        this.turn = 0;
+        this.roundNum = 0;
     }
 
     public void run() {
@@ -72,6 +77,22 @@ public class Player {
     private void gameLoop() {
         while (this.gamePhase == 'G') {
 
+        }
+    }
+
+    /**
+     * Helper method to update the score of a player
+     * @param name The name to find the player by
+     * @param newScore The new score for the player
+     */
+    private void updatePlayer(String name, int newScore) {
+        int numPlayers = otherPlayers.size();
+        for (int i = 0; i < numPlayers; i++) {
+            OtherPlayer other = otherPlayers.get(i);
+            if (other.name.equals(name)) {
+                other.numPoints = newScore;
+                System.out.println(other.name + ": " + other.numPoints);
+            }
         }
     }
 
@@ -131,24 +152,68 @@ public class Player {
                         String[] typeHeader = msgPieces[0].split(": ");
                         String msgType = typeHeader[1];
 
-                        // Player doesn't care about sender; skip to fourth tok
+                        // Player doesn't care about sender (always host),
+                        //  skip to third index
 
                         if (msgType.equals(StatusMessage.MESSAGE_TYPE[0])) {
                             // CONNECT - new player in lobby
-                            String[] playerConnected = msgPieces[4].split(": ");
+                            String[] playerConnected = msgPieces[3].split(": ");
 
                             otherPlayers.add(new OtherPlayer(playerConnected[1]));
                             // Send back an OK
                             String[] data = {"CONNECT"};
                             sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[2])) {
-                            // MOVE - player has made a move
+                            // MOVE - a player has made a move
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[3])) {
                             // BEGIN - starting round
+                            
+                            // Display first player
+                            String[] firstPlayer = msgPieces[3].split(": ");
+                            if (firstPlayer[1].equals(playerAlias)) {
+                                System.out.println("You are going first");
+                                turn = 1;
+                            } else {
+                                System.out.println(firstPlayer[1] + " is going first");
+                            }
+                            
+                            // Save round number
+                            String[] round = msgPieces[4].split(": ");
+                            roundNum = Integer.valueOf(round[1]);
+
+                            // Save scores
+                            String[] scores = msgPieces[5].split(", ");
+                            // First score needs additional logic, since it has
+                            //  the data header on it
+                            System.out.println("Current Points:\n--------------------------------");
+                            String[] firstScore = scores[0].split(": ");
+                            updatePlayer(firstScore[1], Integer.valueOf(firstScore[2]));
+                            for (int i = 1; i < scores.length; i++) {
+                                String[] scoreInfo = scores[i].split("");
+                                if (scoreInfo[1].charAt(scoreInfo[1].length() - 1) == ',') {
+                                    scoreInfo[1] = scoreInfo[1].substring(0, scoreInfo[1].length() - 1);
+                                }
+                                updatePlayer(scoreInfo[0], Integer.valueOf(scoreInfo[1]));
+                            }
+
+                            // Save the starting hand for the player
+                            hand = new ArrayList<Card>();
+                            String[] handMsg = msgPieces[6].split(": ");
+                            String[] givenHand = handMsg[1].split(", ");
+                            for (int i = 0; i < givenHand.length; i++) {
+                                String[] card = givenHand[i].split(" of ");
+                                hand.add(new Card(card[1], card[0].charAt(0)));
+                            }
+                            System.out.println("Starting hand:");
+                            System.out.println(Arrays.toString(hand.toArray()));
+
+                            // Send back an OK
+                            String[] data = {"BEGIN"};
+                            sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[4])) {
                             // END - game over
                             // Display winner and end game
-                            String[] winningPlayer = msgPieces[4].split(": ");
+                            String[] winningPlayer = msgPieces[3].split(": ");
                             System.out.println("Winner: " + winningPlayer[1]);
                             
                             // Send back OK and then close connection
@@ -163,7 +228,7 @@ public class Player {
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[5])) {
                             // OK - msg received
                             // Check what the ACK type was for
-                            String ackType = msgPieces[4];
+                            String ackType = msgPieces[3];
 
                             // TURN - move was valid, save the state
                             if (ackType.equals("TURN")) {

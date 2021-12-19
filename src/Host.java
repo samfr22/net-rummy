@@ -131,18 +131,13 @@ public class Host implements Runnable {
 
             // Enter round loop
             PlayerHandler curPlayer = players.get(whoseTurn);
-            while (true) {
-                // Check to see if any player is out of cards
-                for (int i = 0; i < numPlayers; i++) {
-                    if (players.get(i).heldCards.size() == 0) {
-                        break;
-                    }
-                }
-
+            while (!outOfCards()) {
                 // Wait for input from the current player
                 
 
                 // Look for the new move
+
+                // Take action based on the new move
                 
                 // Update for next turn
                 this.whoseTurn = (whoseTurn + 1) % (numPlayers);
@@ -152,6 +147,22 @@ public class Host implements Runnable {
             // Round over
             this.roundNum++;
         }
+    }
+
+    /**
+     * Helper method to detect if any player is out of cards. Prevents
+     * unreachable code errors in the round loop
+     * @return True if some player has no more cards remaining in hand; False
+     *  if no players are out of cards
+     */
+    private boolean outOfCards() {
+        for (int i = 0; i < numPlayers; i++) {
+            if (players.get(i).heldCards.size() == 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void cleanUp(String winnerName) throws IOException {

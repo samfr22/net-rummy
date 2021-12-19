@@ -29,6 +29,6 @@ public class Card {
      * Returns a composite string for the card using the rank and suit
      */
     public String toString() {
-        return this.rank + ": " + this.suit;
+        return this.rank + " of " + this.suit;
     }
 }

@@ -28,10 +28,6 @@ public class Main {
             System.out.println("3) Exit");
             
             String gameChoice = input.nextLine();
-            while (!gameChoice.equals("1") && !gameChoice.equals("2") && !gameChoice.equals("3")) {
-                System.out.print("Invalid choice - try again: ");
-                gameChoice = input.nextLine();
-            }
 
             if (gameChoice.equals("1")) {
                 // Joining another player lobby - get ip and connect
@@ -74,8 +70,10 @@ public class Main {
                 Player player = new Player("127.0.0.1", alias);
 
                 player.run();
-            } else {
+            } else if (gameChoice.equals("3")) {
                 break;
+            } else {
+                System.out.print("Invalid choice - try again: ");
             }
         }
 
