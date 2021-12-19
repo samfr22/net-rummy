@@ -20,12 +20,14 @@ public class Player {
     protected String playerAlias;
     protected ArrayList<OtherPlayer> otherPlayers;
     protected ArrayList<CardPile> tempMoveState;
+    protected char gamePhase;
 
     public Player(String ip, String name) {
         // Set up the communicator with the given ip
         this.playerAlias = name;
         this.otherPlayers = new ArrayList<OtherPlayer>();
-        this.communicator = new Communicator(this, ip, name);
+        this.communicator = new Communicator(ip, name);
+        this.gamePhase = 'L';
     }
 
     public void run() {
@@ -35,20 +37,33 @@ public class Player {
         // Game loop
         gameLoop();
 
-        // Cleaning up
-        cleanUp();
+        // Cleaning up handled when END received
     }
 
     void lobbyPhase() {
-
+        // If this is the hosting player - allow them to start the game
+        while (this.gamePhase == 'L') {
+            try {
+                Scanner in = new Scanner(System.in);
+                if (this.communicator.socket.getInetAddress().equals(InetAddress.getLocalHost())) {
+                    System.out.println("Start game? (y/n)");
+                    String input = in.nextLine();
+                    if (input.equalsIgnoreCase("y")) {
+                        this.gamePhase = 'G';
+                    }
+                }
+                in.close();
+                Thread.sleep(4000);
+            } catch (Exception e) {
+                System.out.println(e);
+            }
+        }
     }
 
     void gameLoop() {
+        while (this.gamePhase == 'G') {
 
-    }
-
-    void cleanUp() {
-
+        }
     }
 
     /**
@@ -59,8 +74,9 @@ public class Player {
         private PrintWriter writer;
         private BufferedReader reader;
         private Thread listen;
+        private StatusMessage curMessage;
 
-        public Communicator(Player player, String ip, String alias) {
+        public Communicator(String ip, String alias) {
             try {
                 // Make a new connection to the specified server
                 this.socket = new Socket(ip, 50100);
@@ -70,7 +86,7 @@ public class Player {
                 // Start the I/O listeners
                 this.writer = new PrintWriter(socket.getOutputStream());
                 this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                listen = new Thread(new Listener(player));
+                listen = new Thread(new Listener());
                 this.listen.start();
 
             } catch (Exception e) {
@@ -80,6 +96,7 @@ public class Player {
 
         public void sendMsg(String type, String[] data) {
             StatusMessage msg = new StatusMessage(type, playerAlias);
+            this.curMessage = msg;
             msg.makeHeader();
             msg.makeBody(data);
             writer.println(msg.composeMessage());
@@ -91,12 +108,6 @@ public class Player {
          * host
          */
         class Listener implements Runnable {
-
-            private Player player;
-
-            public Listener(Player player) {
-                this.player = player;
-            }
 
             public void run() {
                 while (true) {
@@ -127,6 +138,19 @@ public class Player {
                             // BEGIN - starting round
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[4])) {
                             // END - game over
+                            // Display winner and end game
+                            String[] winningPlayer = msgPieces[4].split(": ");
+                            System.out.println("Winner: " + winningPlayer[1]);
+                            
+                            // Send back OK and then close connection
+                            String[] data = {"END"};
+                            sendMsg("OK", data);
+                            
+                            gamePhase = 'E';
+                            reader.close();
+                            writer.close();
+                            socket.close();
+                            return;
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[5])) {
                             // OK - msg received
                             // Check what the ACK type was for
@@ -137,7 +161,6 @@ public class Player {
                                 int moveStateSize = tempMoveState.size();
                                 for (int i = 0; i < moveStateSize; i++) {
                                     
-                                    
                                 }
                             }
 
@@ -145,6 +168,8 @@ public class Player {
 
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[6])) {
                             // ERR - prev message failed
+                            // Resend the last message
+                            writer.println(curMessage.composeMessage());
                         }
                     } catch (Exception e) {
                         System.out.println(e);
@@ -152,83 +177,5 @@ public class Player {
                 }
             }
         }
-    }
-
-    /**
-     * Runner of the entire program
-     */
-    public static void main(String[] args) {
-        Scanner input = new Scanner(System.in);
-
-        System.out.println("Welcome to Networked Rummy\n");
-        System.out.println("The rules are simple:");
-        System.out.println("\tBe the first to run out of cards in your hand by putting down sets");
-        System.out.println("\tThese sets can be made by making runs/straights of the same suit or by making sets of the same rank");
-        System.out.println("\tAll sets must be at least three cards but can be added to later");
-        System.out.println("\tPoints are given based on the value of the cards put down in sets");
-        System.out.println("\tPoints are lost based on the value of cards still in your hand when the round ends");
-        System.out.println("\tThe first player to reach 500 points wins\n\n");
-
-        while (true) {
-            System.out.println("What would you like to do?");
-            System.out.println("1) Join a lobby");
-            System.out.println("2) Host a game");
-            System.out.println("3) Exit");
-            
-            String gameChoice = input.nextLine();
-            while (!gameChoice.equals("1") && !gameChoice.equals("2") && !gameChoice.equals("3")) {
-                System.out.print("Invalid choice - try again: ");
-                gameChoice = input.nextLine();
-            }
-
-            if (gameChoice.equals("1")) {
-                // Joining another player lobby - get ip and connect
-                System.out.print("Enter host IP to connect to: ");
-                String host = input.nextLine();
-
-                while (host == null || host.equals("")) {
-                    System.out.print("Invalid input - try again: ");
-                    host = input.nextLine();
-                }
-
-                System.out.print("Enter name: ");
-                String alias = input.nextLine();
-
-                while (alias == null || alias.equals("")) {
-                    System.out.print("Invalid input - try again: ");
-                    alias = input.nextLine();
-                }
-
-                System.out.println("Connecting to host...");
-                Player player = new Player(host, alias);
-
-                // Let the game run until the host decides to end
-                player.run();
-
-            } else if (gameChoice.equals("2")) {
-                // Start the host in the background
-                System.out.println("Starting host...");
-                Thread host = new Thread(new Host());
-                host.run();
-
-                // Then connect from the client-facing player program
-                System.out.print("Enter name: ");
-                String alias = input.nextLine();
-
-                while (alias == null || alias.equals("")) {
-                    System.out.print("Invalid input - try again: ");
-                    alias = input.nextLine();
-                }
-
-                System.out.println("Connecting to host...");
-                Player player = new Player("127.0.0.1", alias);
-
-                player.run();
-            } else {
-                break;
-            }
-        }
-
-        input.close();
     }
 }

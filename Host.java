@@ -33,19 +33,13 @@ public class Host implements Runnable {
 
             // First host is valid - save information and let the host run
             this.hostingPlayer = new PlayerHandler(hosting);
-            Thread host = new Thread(hostingPlayer);
             players.add(hostingPlayer);
 
             System.out.println("Hosting Player Connected. Opening lobby...");
 
-            host.start();
-
-            // Model the life cycle of the host program
             lobbyPhase();
 
             gameLoop();
-
-            cleanUp();
         } catch (Exception e) {
             System.out.println(e);
         }
@@ -57,10 +51,11 @@ public class Host implements Runnable {
         while (this.players.size() < 5 && !hostingPlayer.reader.readLine().equals("start")) {
             Socket socket = publicListener.accept();
             PlayerHandler handler = new PlayerHandler(socket);
-            Thread playerHandle = new Thread(handler);
             players.add(handler);
-            playerHandle.start();
         }
+
+        // Start the game
+        gameLoop();
     }
 
     public void gameLoop() throws IOException {
@@ -79,10 +74,28 @@ public class Host implements Runnable {
         while (true) {
             // Check scores of all players and compose into msg while doing so
             String scores = new String();
+            ArrayList<PlayerHandler> winningPlayers = new ArrayList<PlayerHandler>();
             for (int i = 0; i < numPlayers; i++) {
                 PlayerHandler player = players.get(i);
-                if (player.numPoints >= 500) break;
+                if (player.numPoints >= 500) {
+                    winningPlayers.add(player);
+                }
                 scores += player.playerAlias + ": " + player.numPoints + ", ";
+            }
+
+            // Check if any winners
+            if (winningPlayers.size() != 0) {
+                // Find the one with the highest score
+                PlayerHandler highestScore = winningPlayers.get(0);
+                int numWinners = winningPlayers.size();
+                for (int i = 0; i < numWinners; i++) {
+                    if (winningPlayers.get(i).numPoints > highestScore.numPoints) {
+                        highestScore = winningPlayers.get(i);
+                    }
+                }
+                // End the game
+                cleanUp(highestScore.playerAlias);
+                return;
             }
 
             // Starting hands - 13 if 2 players, 7 if more
@@ -96,10 +109,10 @@ public class Host implements Runnable {
             }
 
             // Send out BEGIN messages
-            String firstPlayer = String.valueOf(this.whoseTurn);
+            String firstPlayer = players.get(whoseTurn).playerAlias;
             String roundNumber = String.valueOf(this.roundNum);
             for (int i = 0; i < numPlayers; i++) {
-                StatusMessage begin = new StatusMessage("BEGIN", players.get(i).playerAlias);
+                StatusMessage begin = new StatusMessage("BEGIN", "host");
                 begin.makeHeader();
                 String startingCards = Arrays.toString(players.get(i).heldCards.toArray());
                 String[] data = {firstPlayer, roundNumber, scores, startingCards};
@@ -108,6 +121,7 @@ public class Host implements Runnable {
             }
 
             // Enter round loop
+            PlayerHandler curPlayer = players.get(whoseTurn);
             while (true) {
                 // Check to see if any player is out of cards
                 for (int i = 0; i < numPlayers; i++) {
@@ -117,26 +131,62 @@ public class Host implements Runnable {
                 }
 
                 // Wait for input from the current player
-                String turn;
-                while ((turn = players.get(whoseTurn).reader.readLine()).equals(""));
+                
 
                 // Look for the new move
                 
-                
+                // Update for next turn
+                this.whoseTurn = (whoseTurn + 1) % (numPlayers);
+                curPlayer = players.get(whoseTurn);
             }
 
             // Round over
+            this.roundNum++;
         }
     }
 
-    public void cleanUp() {
+    public void cleanUp(String winnerName) throws IOException {
+        // Send out END messages with the winner
+        StatusMessage end = new StatusMessage("END", "host");
+        end.makeHeader();
+        String[] data = {winnerName};
+        end.makeBody(data);
+        for (int i = 0; i < numPlayers; i++) {
+            players.get(i).sendMsg(end);
+        }
 
+        // Need OK messages from all players to know that the player is closing
+        while (players.size() > 0) {
+            for (int i = 0; i < players.size(); i++) {
+                PlayerHandler player = players.get(i);
+                String ok = player.reader.readLine();
+                if (ok != null && !ok.equals("")) {
+                    // Message received - check that the type is OK
+                    String[] msgPieces = ok.split("\n");
+
+                    // Parse the message based on the message type
+                    // Type is always in the first token
+                    String[] typeHeader = msgPieces[0].split(": ");
+                    String msgType = typeHeader[1];
+                    if (msgType.equals("OK")) {
+                        // Can close up the connection with this player
+                        player.socket.close();
+                        player.reader.close();
+                        player.writer.close();
+                        players.remove(i);
+                        i--;
+                    }
+                }
+            }
+        }
+
+        // All players have closed connections
     }
     
     /**
-     * Inner class to handle player communication and maintain external threads
+     * Inner class to handle player communication
      */
-    class PlayerHandler implements Runnable {
+    class PlayerHandler {
         // Player specific game information
         private ArrayList<Card> heldCards;
         private int numPoints;
@@ -157,23 +207,8 @@ public class Host implements Runnable {
             }
         }
 
-        public void readMsg() {
-
-        }
-
         public void sendMsg(StatusMessage message) {
             writer.println(message.composeMessage());
-        }
-
-        
-        public void run() {
-            try {
-                while(true) {
-                    readMsg();
-                }
-            } catch (Exception e) {
-                System.out.println("Error: " + e);
-            }
         }
     }    
 }
