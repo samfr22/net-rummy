@@ -1,9 +1,17 @@
 package src;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.net.*;
 import java.io.*;
 
+/**
+ * Author: Samuel Fritz
+ * CSCI 4431
+ * 
+ * The acting server - Host - program to coordinate the entire game and open a
+ * public lobby that other players can connect to
+ */
 public class Host implements Runnable {
     
     // Management structures 
@@ -46,7 +54,7 @@ public class Host implements Runnable {
         }
     }
 
-    public void lobbyPhase() throws IOException {
+    private void lobbyPhase() throws IOException {
         // Spin until either the max number of players has been reached or the
         //  host tells the game to start
         while (this.players.size() < 5 && !hostingPlayer.reader.readLine().equals("start")) {
@@ -59,7 +67,7 @@ public class Host implements Runnable {
         gameLoop();
     }
 
-    public void gameLoop() throws IOException {
+    private void gameLoop() throws IOException {
         // Init the structures
         this.deck = new CardPile('D');
         this.discardPile = new CardPile('P');
@@ -146,7 +154,7 @@ public class Host implements Runnable {
         }
     }
 
-    public void cleanUp(String winnerName) throws IOException {
+    private void cleanUp(String winnerName) throws IOException {
         // Send out END messages with the winner
         StatusMessage end = new StatusMessage("END", "host");
         end.makeHeader();

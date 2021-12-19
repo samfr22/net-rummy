@@ -1,8 +1,16 @@
 package src;
+
 import java.util.*;
 import java.net.*;
 import java.io.*;
 
+/**
+ * Author: Samuel Fritz
+ * CSCI 4431
+ * 
+ * The program to handle player actions and connecting to an existing host
+ * lobby
+ */
 public class Player {
 
     class OtherPlayer {
@@ -15,13 +23,13 @@ public class Player {
         }
     }
     
-    protected Communicator communicator;
-    protected ArrayList<Card> hand;
-    protected ArrayList<CardPile> sets;
-    protected String playerAlias;
-    protected ArrayList<OtherPlayer> otherPlayers;
-    protected ArrayList<CardPile> tempMoveState;
-    protected char gamePhase;
+    private Communicator communicator;
+    private ArrayList<Card> hand;
+    private ArrayList<CardPile> sets;
+    private String playerAlias;
+    private ArrayList<OtherPlayer> otherPlayers;
+    private ArrayList<CardPile> tempMoveState;
+    private char gamePhase;
 
     public Player(String ip, String name) {
         // Set up the communicator with the given ip
@@ -41,7 +49,7 @@ public class Player {
         // Cleaning up handled when END received
     }
 
-    void lobbyPhase() {
+    private void lobbyPhase() {
         // If this is the hosting player - allow them to start the game
         while (this.gamePhase == 'L') {
             try {
@@ -61,7 +69,7 @@ public class Player {
         }
     }
 
-    void gameLoop() {
+    private void gameLoop() {
         while (this.gamePhase == 'G') {
 
         }

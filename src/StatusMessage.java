@@ -1,9 +1,13 @@
 package src;
+
 /**
+ * Author: Samuel Fritz
+ * CSCI 4431
+ * 
  * Class to represent all of the possible status messages that can be sent
  */
-
 public class StatusMessage {
+    // All possible message types, in Strings for easier comparison
     public static final String[] MESSAGE_TYPE = {"CONNECT", "TURN", "MOVE", "BEGIN", "END", "OK", "ERR"};
 
     private String msgType;
@@ -11,11 +15,23 @@ public class StatusMessage {
     private String body;
     private String header;
 
+    /**
+     * Constructor
+     * @param type The type of status message being made
+     * @param sender The soon-to-be sender of the message
+     */
     public StatusMessage(String type, String sender) {
         this.msgType = type;
         this.sender = sender;
+        this.header = null;
+        this.body = null;
     }
 
+    /**
+     * Returns the entire message composed with a previously created
+     * header and body. If either has not been initialized, nothing is created
+     * @return The composite message containing the header and body formatted
+     */
     public String composeMessage() {
         // Can't get the net message if body or head hasn't been created
         if (this.header == null || this.body == null) return null;
@@ -23,10 +39,19 @@ public class StatusMessage {
         return this.header + "\n\n" + this.body + "\n\n";
     }
 
+    /**
+     * Initializes the header of the message
+     */
     public void makeHeader() {
         this.header = "Type: " + this.msgType + "\nSender: " + this.sender;
     }
 
+    /**
+     * Initializes the body of the message. If the data argument for a message
+     * type is too short, the message fails to be made. Based on the type of
+     * message, the body is created with different fields
+     * @param data The data to be contained in the message body
+     */
     public void makeBody(String[] data) {
         if (this.msgType.compareTo(MESSAGE_TYPE[0]) == 0) {
             // CONNECT

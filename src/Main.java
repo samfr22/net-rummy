@@ -1,6 +1,13 @@
 package src;
+
 import java.util.Scanner;
 
+/**
+ * Author: Samuel Fritz
+ * CSCI 4431
+ * 
+ * The runner program for the game
+ */
 public class Main {
     public static void main(String[] args) {
         Scanner input = new Scanner(System.in);
@@ -30,7 +37,6 @@ public class Main {
                 // Joining another player lobby - get ip and connect
                 System.out.print("Enter host IP to connect to: ");
                 String host = input.nextLine();
-
                 while (host == null || host.equals("")) {
                     System.out.print("Invalid input - try again: ");
                     host = input.nextLine();
@@ -49,7 +55,6 @@ public class Main {
 
                 // Let the game run until the host decides to end
                 player.run();
-
             } else if (gameChoice.equals("2")) {
                 // Start the host in the background
                 System.out.println("Starting host...");
