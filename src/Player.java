@@ -37,8 +37,12 @@ public class Player {
     public Player(String ip, String name) {
         // Set up the communicator with the given ip
         this.playerAlias = name;
-        this.otherPlayers = new ArrayList<OtherPlayer>();
         this.communicator = new Communicator(ip, name);
+        if (this.communicator == null) {
+            // Denied access to game
+            return;
+        }
+        this.otherPlayers = new ArrayList<OtherPlayer>();
         this.gamePhase = 'L';
         this.turn = 0;
         this.roundNum = 0;
@@ -117,6 +121,25 @@ public class Player {
                 this.writer = new PrintWriter(socket.getOutputStream());
                 this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 listen = new Thread(new Listener());
+                
+                // Send a CONNECT message to get approval to join the lobby
+                String[] data = {ip, "50100"};
+                sendMsg("CONNECT", data);
+                // Make sure lobby sends back an OK
+                String ok = reader.readLine();
+                while (ok == null || ok.equals("")) {
+                    ok = reader.readLine();
+                }
+                String msgType = ok.split("\n")[0].split(": ")[1];
+                if (!msgType.equals("OK")) {
+                    System.out.println("Connection denied by host");
+                    this.reader.close();
+                    this.writer.close();
+                    this.socket.close();
+                    communicator = null;
+                    return;
+                }
+
                 this.listen.start();
 
             } catch (Exception e) {
@@ -144,6 +167,7 @@ public class Player {
                     try {
                         // Read message from the host
                         String hostMsg = reader.readLine();
+                        if (hostMsg == null || hostMsg.equals("")) continue;
 
                         String[] msgPieces = hostMsg.split("\n");
 

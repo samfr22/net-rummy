@@ -98,7 +98,7 @@ public class StatusMessage {
         } else if (this.msgType.compareTo(MESSAGE_TYPE[6]) == 0) {
             // ERR
             // Need a message type being erred
-            if (data.length != 1) return;
+            if (data.length < 1) return;
 
             this.body = data[0];
         }

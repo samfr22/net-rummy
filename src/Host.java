@@ -45,107 +45,158 @@ public class Host implements Runnable {
             players.add(hostingPlayer);
 
             System.out.println("Hosting Player Connected. Opening lobby...");
-
             lobbyPhase();
 
-            gameLoop();
+            // Game continues and ends from the lobby phase method
         } catch (Exception e) {
             System.out.println(e);
         }
     }
 
-    private void lobbyPhase() throws IOException {
-        // Spin until either the max number of players has been reached or the
-        //  host tells the game to start
-        while (this.players.size() < 5 && !hostingPlayer.reader.readLine().equals("start")) {
-            Socket socket = publicListener.accept();
-            PlayerHandler handler = new PlayerHandler(socket);
-            players.add(handler);
+    private void lobbyPhase() {
+        try {
+            // Spin until either the max number of players has been reached or the
+            //  host tells the game to start
+            while (this.players.size() < 5 && !hostingPlayer.reader.readLine().equals("start")) {
+                Socket socket = publicListener.accept();
+                PlayerHandler handler = new PlayerHandler(socket);
+                
+                // Get the CONNECT message to verify player
+                String connect = handler.reader.readLine();
+                while (connect == null || connect.equals("")) {
+                    connect = handler.reader.readLine();
+                }
+
+                // Verify type
+                String[] pieces = connect.split("\n");
+                String msgType = pieces[0].split(": ")[1];
+                if (!msgType.equals("CONNECT")) {
+                    // Send back ERR and close connection
+                    String[] data = {"CONNECT"};
+                    handler.sendMsg("ERR", data);
+                    handler.writer.close();
+                    handler.reader.close();
+                    handler.socket.close();
+                    continue;
+                }
+                
+                // Save the player name from the sender field
+                handler.playerAlias = pieces[1].split(": ")[1];
+
+                // Check that no other player is using the name
+                for (int i = 0; i < players.size(); i++) {
+                    if (players.get(i).playerAlias.equals(handler.playerAlias)) {
+                        // Name in use
+                        String[] data = {"CONNECT", "Name in use"};
+                        handler.sendMsg("ERR", data);
+                        handler.writer.close();
+                        handler.reader.close();
+                        handler.socket.close();
+                    }
+                }
+
+                // Send back ok
+                String[] data = {"CONNECT"};
+                handler.sendMsg("OK", data);
+
+                // Send out CONNECT messages for all current players to see the
+                //  new player
+                String[] data2 = {handler.playerAlias, String.valueOf(50100)};
+                for (int i = 0; i < players.size(); i++) {
+                    players.get(i).sendMsg("CONNECT", data2);
+                }
+
+                // Add player to list and look for a new player
+                players.add(handler);
+            }
+        } catch (Exception e) {
+            System.out.println("Lobby error: " + e);
         }
 
         // Start the game
         gameLoop();
     }
 
-    private void gameLoop() throws IOException {
+    private void gameLoop() {
         // Init the structures
-        this.deck = new CardPile('D');
-        this.discardPile = new CardPile('P');
-        this.whoseTurn = (int) Math.random() * players.size();
-        this.roundNum = 1;
-        this.numPlayers = players.size();
+        try {
+            this.deck = new CardPile('D');
+            this.discardPile = new CardPile('P');
+            this.whoseTurn = (int) Math.random() * players.size();
+            this.roundNum = 1;
+            this.numPlayers = players.size();
 
-        for (int i = 0; i < numPlayers; i++) {
-            players.get(i).heldCards = new ArrayList<Card>();
-        }
-
-        // Game loop
-        while (true) {
-            // Check scores of all players and compose into msg while doing so
-            String scores = new String();
-            ArrayList<PlayerHandler> winningPlayers = new ArrayList<PlayerHandler>();
             for (int i = 0; i < numPlayers; i++) {
-                PlayerHandler player = players.get(i);
-                if (player.numPoints >= 500) {
-                    winningPlayers.add(player);
-                }
-                scores += player.playerAlias + ": " + player.numPoints + ", ";
+                players.get(i).heldCards = new ArrayList<Card>();
             }
 
-            // Check if any winners
-            if (winningPlayers.size() != 0) {
-                // Find the one with the highest score
-                PlayerHandler highestScore = winningPlayers.get(0);
-                int numWinners = winningPlayers.size();
-                for (int i = 0; i < numWinners; i++) {
-                    if (winningPlayers.get(i).numPoints > highestScore.numPoints) {
-                        highestScore = winningPlayers.get(i);
+            // Game loop
+            while (true) {
+                // Check scores of all players and compose into msg while doing so
+                String scores = new String();
+                ArrayList<PlayerHandler> winningPlayers = new ArrayList<PlayerHandler>();
+                for (int i = 0; i < numPlayers; i++) {
+                    PlayerHandler player = players.get(i);
+                    if (player.numPoints >= 500) {
+                        winningPlayers.add(player);
+                    }
+                    scores += player.playerAlias + ": " + player.numPoints + ", ";
+                }
+
+                // Check if any winners
+                if (winningPlayers.size() != 0) {
+                    // Find the one with the highest score
+                    PlayerHandler highestScore = winningPlayers.get(0);
+                    int numWinners = winningPlayers.size();
+                    for (int i = 0; i < numWinners; i++) {
+                        if (winningPlayers.get(i).numPoints > highestScore.numPoints) {
+                            highestScore = winningPlayers.get(i);
+                        }
+                    }
+                    // End the game
+                    cleanUp(highestScore.playerAlias);
+                    return;
+                }
+
+                // Starting hands - 13 if 2 players, 7 if more
+                int startingAmount = 7;
+                if (numPlayers == 2) startingAmount = 13;
+                for (int i = 0; i < startingAmount; i++) {
+                    // Make sure that cards are being dealt spread out
+                    for (int j = 0; j < numPlayers; j++) {
+                        players.get(j).heldCards.add(deck.drawCard());
                     }
                 }
-                // End the game
-                cleanUp(highestScore.playerAlias);
-                return;
-            }
 
-            // Starting hands - 13 if 2 players, 7 if more
-            int startingAmount = 7;
-            if (numPlayers == 2) startingAmount = 13;
-            for (int i = 0; i < startingAmount; i++) {
-                // Make sure that cards are being dealt spread out
-                for (int j = 0; j < numPlayers; j++) {
-                    players.get(j).heldCards.add(deck.drawCard());
+                // Send out BEGIN messages
+                String firstPlayer = players.get(whoseTurn).playerAlias;
+                String roundNumber = String.valueOf(this.roundNum);
+                for (int i = 0; i < numPlayers; i++) {
+                    String startingCards = Arrays.toString(players.get(i).heldCards.toArray());
+                    String[] data = {firstPlayer, roundNumber, scores, startingCards};
+                    players.get(i).sendMsg("BEGIN", data);
                 }
+
+                // Enter round loop
+                PlayerHandler curPlayer = players.get(whoseTurn);
+                while (!outOfCards()) {
+                    // Wait for input from the current player
+                    
+
+                    // Look for the new move
+
+                    // Take action based on the new move
+                    
+                    // Update for next turn
+                    this.whoseTurn = (whoseTurn + 1) % (numPlayers);
+                    curPlayer = players.get(whoseTurn);
+                }
+
+                // Round over
+                this.roundNum++;
             }
-
-            // Send out BEGIN messages
-            String firstPlayer = players.get(whoseTurn).playerAlias;
-            String roundNumber = String.valueOf(this.roundNum);
-            for (int i = 0; i < numPlayers; i++) {
-                StatusMessage begin = new StatusMessage("BEGIN", "host");
-                begin.makeHeader();
-                String startingCards = Arrays.toString(players.get(i).heldCards.toArray());
-                String[] data = {firstPlayer, roundNumber, scores, startingCards};
-                begin.makeBody(data);
-                players.get(i).writer.println(begin.composeMessage());
-            }
-
-            // Enter round loop
-            PlayerHandler curPlayer = players.get(whoseTurn);
-            while (!outOfCards()) {
-                // Wait for input from the current player
-                
-
-                // Look for the new move
-
-                // Take action based on the new move
-                
-                // Update for next turn
-                this.whoseTurn = (whoseTurn + 1) % (numPlayers);
-                curPlayer = players.get(whoseTurn);
-            }
-
-            // Round over
-            this.roundNum++;
+        } catch (Exception e) {
+            System.out.println("Game error: " + e);
         }
     }
 
@@ -161,18 +212,14 @@ public class Host implements Runnable {
                 return true;
             }
         }
-
         return false;
     }
 
     private void cleanUp(String winnerName) throws IOException {
         // Send out END messages with the winner
-        StatusMessage end = new StatusMessage("END", "host");
-        end.makeHeader();
         String[] data = {winnerName};
-        end.makeBody(data);
         for (int i = 0; i < numPlayers; i++) {
-            players.get(i).sendMsg(end);
+            players.get(i).sendMsg("END", data);
         }
 
         // Need OK messages from all players to know that the player is closing
@@ -217,6 +264,10 @@ public class Host implements Runnable {
         private PrintWriter writer;
         private String playerAlias;
 
+        /**
+         * Constructor
+         * @param socket The connection socket this handler is for
+         */
         public PlayerHandler(Socket socket) {
             try {
                 this.socket = socket;
@@ -227,7 +278,15 @@ public class Host implements Runnable {
             }
         }
 
-        public void sendMsg(StatusMessage message) {
+        /**
+         * Send a message into the socket
+         * @param msgType The type of StatusMessage to make
+         * @param data The data for the body
+         */
+        public void sendMsg(String msgType, String[] data) {
+            StatusMessage message = new StatusMessage(msgType, "host");
+            message.makeHeader();
+            message.makeBody(data);
             writer.println(message.composeMessage());
         }
     }    
