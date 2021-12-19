@@ -1,3 +1,4 @@
+package src;
 /**
  * Class to represent all of the possible status messages that can be sent
  */

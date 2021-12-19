@@ -1,3 +1,4 @@
+package src;
 import java.util.Scanner;
 
 public class Main {
@@ -29,7 +30,7 @@ public class Main {
                 // Joining another player lobby - get ip and connect
                 System.out.print("Enter host IP to connect to: ");
                 String host = input.nextLine();
-                
+
                 while (host == null || host.equals("")) {
                     System.out.print("Invalid input - try again: ");
                     host = input.nextLine();
