@@ -176,20 +176,95 @@ public class Host implements Runnable {
                     String[] data = {firstPlayer, roundNumber, scores, startingCards};
                     players.get(i).sendMsg("BEGIN", data);
                 }
+                recvReplies("BEGIN");
 
                 // Enter round loop
                 PlayerHandler curPlayer = players.get(whoseTurn);
                 while (!outOfCards()) {
                     // Wait for input from the current player
-                    
+                    String turnMsg = curPlayer.reader.readLine();
+                    while (turnMsg == null || turnMsg.equals("")) {
+                        turnMsg = curPlayer.reader.readLine();
+                    }
 
-                    // Look for the new move
+                    // Look for the deck/discard pile taking
+                    String action = curPlayer.reader.readLine();
+                    while (action == null || action.equals("")) {
+                        action = curPlayer.reader.readLine();
+                    }
 
-                    // Take action based on the new move
+                    String[] actionMsg = action.split("\n");
+                    String cardTakeAction = actionMsg[3].split(": ")[1];
+                    String cardData = "";
+                    if (cardTakeAction.equals("T")) {
+                        // Deal the top card of the deck out
+                        Card topCard = deck.drawCard();
+                        if (topCard == null) {
+                            // If deck is empty, need to reshuffle the discard
+                            //  into the deck
+                            deck = discardPile;
+                            deck.changeDeckType('D');
+                            deck.shuffle();
+                            discardPile = new CardPile('P');
+
+                            // Try again
+                            topCard = deck.drawCard();
+                        }
+
+                        // Set data as the card
+                        cardData = topCard.toString();
+                    } else if (cardTakeAction.equals("P")) {
+                        // Get the position in the discard pile
+                        String discardPos = actionMsg[4].split(": ")[1];
+                        Card[] discardCards = discardPile.discardDraw(Integer.valueOf(discardPos));
+
+                        // Set the data piece with the card information
+                        for (int i = 0; i < discardCards.length; i++) {
+                            cardData += discardCards[i].toString() + ", ";
+                        }
+                    }
+
+                    // Send back the retrieved card(s)
+                    String[] data = {"TURN", cardData};
+                    curPlayer.sendMsg("OK", data);
+
+                    // Let the player program handle melds - waiting until the
+                    //  next TURN message is sent to contain info about the 
+                    //  outcome of the turn
+                    String turnOver = curPlayer.reader.readLine();
+                    while (turnOver == null || turnOver.equals("")) {
+                        turnOver = curPlayer.reader.readLine();
+                    }
+
+                    String[] pieces = turnOver.split("\n");
+                    // Get all of the cards in the player's hand
+                    curPlayer.heldCards.clear();
+                    String[] hand = pieces[4].split(": ")[1].split(", ");
+                    for (int i = 0; i < hand.length; i++) {
+                        String[] card = hand[i].split(" of ");
+                        curPlayer.heldCards.add(new Card(card[1], card[0].charAt(0)));
+                    }
+                    // Save the points for player
+                    curPlayer.numPoints = Integer.valueOf(pieces[5].split(": ")[1]);
+
+                    // Get the discarded card
+                    String[] discarded = pieces[6].split("of");
+                    Card discardedCard = new Card(discarded[1], discarded[0].charAt(0));
+                    discardPile.addCard(discardedCard);
                     
                     // Update for next turn
                     this.whoseTurn = (whoseTurn + 1) % (numPlayers);
-                    curPlayer = players.get(whoseTurn);
+                    PlayerHandler nextPlayer = players.get(whoseTurn);
+
+                    // Send out a MOVE message to all players
+                    String[] data3 = {curPlayer.playerAlias, String.valueOf(curPlayer.numPoints), nextPlayer.playerAlias, discardedCard.toString(), discardPile.toString()};
+                    for (int i = 0; i < players.size(); i++) {
+                        players.get(i).sendMsg("MOVE", data3);
+                    }
+
+                    recvReplies("MOVE");
+                    
+                    curPlayer = nextPlayer;
                 }
 
                 // Round over
@@ -197,6 +272,37 @@ public class Host implements Runnable {
             }
         } catch (Exception e) {
             System.out.println("Game error: " + e);
+        }
+    }
+
+    /**
+     * Helper method to make sure that all players send back an OK message for
+     * a previously sent message
+     * @param messageType The message type to be acknowledged
+     */
+    void recvReplies(String messageType) {
+        ArrayList<PlayerHandler> nonReplied = new ArrayList<PlayerHandler>();
+        for (int i = 0; i < numPlayers; i++) {
+            nonReplied.add(players.get(i));
+        }
+
+        // Get OK from each player
+        while (nonReplied.size() > 0) {
+            for (int i = 0; i < nonReplied.size(); i++) {
+                PlayerHandler player = nonReplied.get(i);
+                try {
+                    String msg = player.reader.readLine();
+                    if (msg == null || msg.equals("")) continue;
+
+                    String msgType = msg.split("\n")[0].split(": ")[1];
+                    if (msgType.equals(messageType)) {
+                        // ACK received for the type - remove it from list
+                        nonReplied.remove(i);
+                    }
+                } catch (Exception e) {
+                    System.out.println("Reply error: " + e);
+                }
+            }
         }
     }
 
@@ -223,31 +329,17 @@ public class Host implements Runnable {
         }
 
         // Need OK messages from all players to know that the player is closing
-        while (players.size() > 0) {
-            for (int i = 0; i < players.size(); i++) {
-                PlayerHandler player = players.get(i);
-                String ok = player.reader.readLine();
-                if (ok != null && !ok.equals("")) {
-                    // Message received - check that the type is OK
-                    String[] msgPieces = ok.split("\n");
+        recvReplies("END");
 
-                    // Parse the message based on the message type
-                    // Type is always in the first token
-                    String[] typeHeader = msgPieces[0].split(": ");
-                    String msgType = typeHeader[1];
-                    if (msgType.equals("OK")) {
-                        // Can close up the connection with this player
-                        player.socket.close();
-                        player.reader.close();
-                        player.writer.close();
-                        players.remove(i);
-                        i--;
-                    }
-                }
-            }
+        // Clean up connection for each player
+        for (int i = 0; i < players.size(); i++) {
+            PlayerHandler player = players.get(i);
+            player.reader.close();
+            player.writer.close();
+            player.socket.close();
+            players.remove(i);
+            i--;
         }
-
-        // All players have closed connections
     }
     
     /**

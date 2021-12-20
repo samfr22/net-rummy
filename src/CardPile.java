@@ -67,6 +67,10 @@ public class CardPile {
         return topCard;
     }
 
+    public void changeDeckType(char newType) {
+        this.deckType = newType;
+    }
+
     /**
      * Draws a set of cards from the discard pile, based on the position of the
      * desired card in the deck. The card and all cards above it are returned
@@ -81,16 +85,15 @@ public class CardPile {
         // Make sure not empty
         if (this.cards.size() == 0) return null;
 
-        // Check final capacity to prevent exceptions
-        if (this.cards.size() - cardDown < 0) return null;
-
-        // Take the number of cards specified
-        Card[] pileCards = new Card[cardDown];
-        for (int i = 0; i < cardDown; i++) {
-            pileCards[i] = this.cards.remove(0);
+        // Take the number specified or as many as possible
+        int numTaken = 0;
+        ArrayList<Card> buffer = new ArrayList<Card>();
+        while (this.cards.size() != 0 && numTaken <= cardDown) {
+            buffer.add(this.cards.remove(0));
+            numTaken++;
         }
 
-        return pileCards;
+        return (Card[]) buffer.toArray();
     }
 
     /**
@@ -119,8 +122,7 @@ public class CardPile {
         for (int i = 0; i < cards.size(); i++) {
             str += cards.get(i).toString() + ", ";
         }
-        String ret = str.substring(0, str.length());
-        return ret;
+        return str;
     }
 
     /**
@@ -131,5 +133,13 @@ public class CardPile {
         if (this.deckType == PILE_TYPES[0]) return null;
 
         return (Card[]) this.cards.toArray();
+    }
+
+    /**
+     * Returns the number of cards to a an outside caller
+     * @return The number of cards tracked by this pile
+     */
+    public int numCards() {
+        return this.cards.size();
     }
 }

@@ -108,7 +108,15 @@ public class Player {
                     String[] data = {"T"};
                     this.communicator.sendMsg("TURN", data);
                 } else if (action.equals("P")) {
-                    String[] data = {"P"};
+
+                    // Need a position in the discard pile to take from
+                    String discardPos = input.nextLine();
+                    while (Integer.valueOf(discardPos) < 0) {
+                        System.out.println("Need a positive number");
+                        discardPos = input.nextLine();
+                    }
+
+                    String[] data = {"P", discardPos};
                     this.communicator.sendMsg("TURN", data);
                 }
 
@@ -128,7 +136,7 @@ public class Player {
                 }
 
                 // Allow player to continuously make melds until they discard
-                Card discarding;
+                Card discarding = null;
                 while (!action.equals("D")) {
                     System.out.println("Your hand: " + Arrays.toString(hand.toArray()));
                     System.out.println("(S)et down a new meld");
@@ -242,8 +250,11 @@ public class Player {
                 // Turn over - send remaining hand to the host as well as
                 //  number of points player has now
                 String handRemaining = "Hand: ";
+                for (int i = 0; i < hand.size(); i++) {
+                    handRemaining += hand.get(i).toString() + ", ";
+                }
                 String points = "Points: " + String.valueOf(numPoints);
-                String[] data = {"D", handRemaining, points};
+                String[] data = {"D", handRemaining, points, discarding.toString()};
                 this.communicator.sendMsg("TURN", data);
 
                 // Sleep to allow the listener to end the turn
@@ -453,6 +464,10 @@ public class Player {
                             if (playerAlias.equals(nextPlayer)) {
                                 turn = 1;
                             }
+
+                            // Send back an OK
+                            String[] data = {"MOVE"};
+                            sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[3])) {
                             // BEGIN - starting round
                             
@@ -468,6 +483,7 @@ public class Player {
                             // Save round number
                             String[] round = msgPieces[4].split(": ");
                             roundNum = Integer.valueOf(round[1]);
+                            System.out.println("Round " + roundNum);
 
                             // Save scores
                             String[] scores = msgPieces[5].split(", ");
