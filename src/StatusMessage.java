@@ -71,9 +71,9 @@ public class StatusMessage {
         } else if (this.msgType.compareTo(MESSAGE_TYPE[2]) == 0) {
             // MOVE
             // Need the player that went and their move and the next player to go
-            if (data.length != 3) return;
-
-            this.body = "Player: " + data[0] + "\nMove: " + data[1] + "\nNext Player: " + data[2];
+            if (data.length != 5) return;
+            
+            this.body = "Player: " + data[0] + "\nPoints: " + data[1] + "\nNext Player: " + data[2] + "\nDiscarded: " + data[3] + "\n" + data[4];
         } else if (this.msgType.compareTo(MESSAGE_TYPE[3]) == 0) {
             // BEGIN
             if (data.length != 5) {

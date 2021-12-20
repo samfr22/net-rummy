@@ -26,31 +26,29 @@ public class Player implements Runnable {
     private Communicator communicator;
     private ArrayList<Card> hand;
     private ArrayList<CardPile> sets;
-    private String playerAlias;
-    private ArrayList<OtherPlayer> otherPlayers;
-    private ArrayList<Card> buffer;
+    volatile private ArrayList<OtherPlayer> otherPlayers;
+    volatile private ArrayList<Card> buffer;
     volatile static char gamePhase;
-    private int roundNum;
-    private int turn;
-    private OtherPlayer self;
+    volatile private int roundNum;
+    volatile private int turn;
+    volatile private OtherPlayer self;
     private boolean isHost;
 
     Scanner input = new Scanner(System.in);
 
     public Player(String ip, String name, boolean host) {
         // Set up the communicator with the given ip
-        this.playerAlias = name;
         this.communicator = new Communicator(ip, name);
         this.isHost = host;
+        this.self = new OtherPlayer(name);
+        this.otherPlayers = new ArrayList<OtherPlayer>();
+        otherPlayers.add(self);
         if (this.communicator == null) {
             // Denied access to game
             System.out.println("Player creation failed");
             return;
         }
         // Add player themselves to a list of players to keep track of
-        this.otherPlayers = new ArrayList<OtherPlayer>();
-        this.self = new OtherPlayer(name);
-        otherPlayers.add(self);
         gamePhase = 'L';
         this.turn = 0;
         this.roundNum = 0;
@@ -98,7 +96,7 @@ public class Player implements Runnable {
                 System.out.println("Your hand: " + Arrays.toString(hand.toArray()));
 
                 // Get action input
-                System.out.println(playerAlias + ", What would you like to do?");
+                System.out.println(self.name + ", What would you like to do?");
                 System.out.println("(T)ake a card from the deck");
                 System.out.println("(P)ick a card from the discard pile");
                 String action = input.nextLine();
@@ -230,14 +228,21 @@ public class Player implements Runnable {
                         // Check to see if the meld is valid
                         if (isValidMeld()) {
                             // Meld is valid, make a new set and add the cards to it
+                            System.out.println("Meld is valid\n");
                             CardPile meld = new CardPile('S');
-                            self.numPoints += Card.computePoints((Card[]) buffer.toArray());
+                            Card[] compuCards = new Card[buffer.size()];
+                            for (int i = 0; i < buffer.size(); i++) {
+                                compuCards[i] = buffer.get(i);
+                            }
+                            self.numPoints += Card.computePoints(compuCards);
                             while (buffer.size() > 0) {
-                                meld.addCard(buffer.remove(0));
+                                Card temp = buffer.remove(0);
+                                hand.remove(temp);
+                                meld.addCard(temp);
                             }
                             sets.add(meld);
                         } else {
-                            System.out.println("Meld is invalid");
+                            System.out.println("Meld is invalid\n");
                             buffer.clear();
                             continue;
                         }
@@ -319,7 +324,7 @@ public class Player implements Runnable {
             //  suit is always the same
             for (int i = 1; i < numCards; i++) {
                 // Rank checking
-                if (buffer.get(i - 1).rank != buffer.get(i).rank - 1) {
+                if (buffer.get(i - 1).getRankNum() != buffer.get(i).getRankNum() - 1) {
                     return false;
                 }
 
@@ -426,12 +431,12 @@ public class Player implements Runnable {
          * @param data The data to be put into the body
          */
         public void sendMsg(String type, String[] data) {
-            StatusMessage msg = new StatusMessage(type, playerAlias);
+            StatusMessage msg = new StatusMessage(type, self.name);
             this.curMessage = msg;
             msg.makeHeader();
             msg.makeBody(data);
             String netMsg = msg.composeMessage();
-            System.out.println("Sending\n-----------\n" + netMsg + "-------\n");
+            // System.out.println("Sending\n-----------\n" + netMsg + "-------\n");
             writer.println(netMsg);
         }
 
@@ -466,7 +471,6 @@ public class Player implements Runnable {
                         }
                         // Parse the message based on the message type
                         // Type is always in the first token
-                        System.out.println("RECEIVED: " + hostMsg);
                         String msgType = hostMsg.split(": ")[1];
 
                         // Player doesn't care about sender (always host),
@@ -504,7 +508,7 @@ public class Player implements Runnable {
                             hostMsg = reader.readLine();
                             String nextPlayer = hostMsg.split(": ")[1];
                             System.out.println("Next player: " + nextPlayer);
-                            if (playerAlias.equals(nextPlayer)) {
+                            if (self.name.equals(nextPlayer.trim())) {
                                 turn = 1;
                             }
 
@@ -514,7 +518,7 @@ public class Player implements Runnable {
                             
                             // Net discard pile displayed
                             hostMsg = reader.readLine();
-                            System.out.println(hostMsg);
+                            System.out.println("Discard pile:\n" + hostMsg);
 
                             System.out.println();
 
@@ -527,7 +531,7 @@ public class Player implements Runnable {
                             // Display first player
                             hostMsg = reader.readLine();
                             String[] firstPlayer = hostMsg.split(": ");
-                            if (firstPlayer[1].equals(playerAlias)) {
+                            if (firstPlayer[1].equals(self.name)) {
                                 System.out.println("You are going first");
                                 turn = 1;
                             } else {

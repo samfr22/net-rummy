@@ -93,7 +93,12 @@ public class CardPile {
             numTaken++;
         }
 
-        return (Card[]) buffer.toArray();
+        Card[] temp = new Card[buffer.size()];
+        for (int i = 0; i < temp.length; i++) {
+            temp[i] = buffer.get(i);
+        }
+
+        return temp;
     }
 
     /**
@@ -132,7 +137,13 @@ public class CardPile {
     public Card[] allCards() {
         if (this.deckType == PILE_TYPES[0]) return null;
 
-        return (Card[]) this.cards.toArray();
+
+        Card[] temp = new Card[cards.size()];
+        for (int i = 0; i < temp.length; i++) {
+            temp[i] = cards.get(i);
+        }
+
+        return temp;
     }
 
     /**

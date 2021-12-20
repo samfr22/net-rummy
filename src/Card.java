@@ -48,4 +48,17 @@ public class Card {
         }
         return points;
     }
+
+    /**
+     * Returns a numerical value that relates the rank of the card
+     * @return A number between 1 and 13 depending on the rank
+     */
+    public int getRankNum() {
+        if (this.rank == 'A') return 1;
+        if (this.rank == 'T') return 10;
+        if (this.rank == 'J') return 11;
+        if (this.rank == 'Q') return 12;
+        if (this.rank == 'K') return 13;
+        return this.rank - 48;
+    }
 }
