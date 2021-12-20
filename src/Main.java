@@ -76,7 +76,6 @@ public class Main {
                     e.printStackTrace();
                 }
                 Player player = new Player(address, alias, true);
-                System.out.println("Starting player thread");
                 player.run();
             } else if (gameChoice.equals("3")) {
                 break;

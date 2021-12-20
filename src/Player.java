@@ -33,8 +33,10 @@ public class Player implements Runnable {
     private char gamePhase;
     private int roundNum;
     private int turn;
-    private int numPoints;
+    private OtherPlayer self;
     private boolean isHost;
+
+    Scanner input = new Scanner(System.in);
 
     public Player(String ip, String name, boolean host) {
         // Set up the communicator with the given ip
@@ -46,21 +48,23 @@ public class Player implements Runnable {
             System.out.println("Player creation failed");
             return;
         }
+        // Add player themselves to a list of players to keep track of
         this.otherPlayers = new ArrayList<OtherPlayer>();
+        this.self = new OtherPlayer(name);
+        otherPlayers.add(self);
         this.gamePhase = 'L';
         this.turn = 0;
         this.roundNum = 0;
-        this.numPoints = 0;
     }
 
     public void run() {
         // Idle in lobby phase
         lobbyPhase();
 
-        // Game loop
-        gameLoop();
+        // Game loop and cleaning up handled off of the lobby phase call
 
         // Cleaning up handled when END received
+        input.close();
     }
 
     private void lobbyPhase() {
@@ -68,28 +72,26 @@ public class Player implements Runnable {
         this.hand = new ArrayList<Card>();
         this.sets = new ArrayList<CardPile>();
         this.buffer = new ArrayList<Card>();
-        Scanner in = new Scanner(System.in);
         while (this.gamePhase == 'L') {
             try {
                 if (isHost) {
                     System.out.println("Start game? (y/n)");
-                    String input = in.nextLine();
-                    if (input.equalsIgnoreCase("y")) {
+                    String in = input.nextLine();
+                    if (in.equalsIgnoreCase("y")) {
                         this.gamePhase = 'G';
                         // Write a start cue to the host
                         this.communicator.writer.println("start");
                     }
+                    Thread.sleep(400);
                 }
-                Thread.sleep(4000);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-        in.close();
+        gameLoop();
     }
 
     private void gameLoop() {
-        Scanner input = new Scanner(System.in);
         while (this.gamePhase == 'G') {
             // Player can't perform actions until designated by host
             if (this.turn != 0) {
@@ -188,7 +190,7 @@ public class Player implements Runnable {
                                 // Meld is valid - add card officially to the set
                                 sets.get(whichSet).addCard(meldCard);
                                 Card[] temp = {meldCard};
-                                this.numPoints += Card.computePoints(temp);
+                                self.numPoints += Card.computePoints(temp);
                             } else {
                                 System.out.println("Invalid meld");
                             }
@@ -227,7 +229,7 @@ public class Player implements Runnable {
                         if (isValidMeld()) {
                             // Meld is valid, make a new set and add the cards to it
                             CardPile meld = new CardPile('S');
-                            this.numPoints += Card.computePoints((Card[]) buffer.toArray());
+                            self.numPoints += Card.computePoints((Card[]) buffer.toArray());
                             while (buffer.size() > 0) {
                                 meld.addCard(buffer.remove(0));
                             }
@@ -258,7 +260,7 @@ public class Player implements Runnable {
                 for (int i = 0; i < hand.size(); i++) {
                     handRemaining += hand.get(i).toString() + ", ";
                 }
-                String points = "Points: " + String.valueOf(numPoints);
+                String points = "Points: " + String.valueOf(self.numPoints);
                 String[] data = {"D", handRemaining, points, discarding.toString()};
                 this.communicator.sendMsg("TURN", data);
 
@@ -270,7 +272,6 @@ public class Player implements Runnable {
                 }
             }
         }
-        input.close();
     }
 
     /**
@@ -350,8 +351,15 @@ public class Player implements Runnable {
             if (other.name.equals(name)) {
                 other.numPoints = newScore;
                 System.out.println(other.name + ": " + other.numPoints);
+                return;
             }
         }
+
+        // Player not found make a new handler and add it
+        OtherPlayer newPlayer = new OtherPlayer(name);
+        newPlayer.numPoints = newScore;
+        otherPlayers.add(newPlayer);
+        System.out.println(newPlayer.name + ": " + newPlayer.numPoints);
     }
 
     /**
@@ -449,7 +457,6 @@ public class Player implements Runnable {
                         while (hostMsg == null || hostMsg.equals("")) {
                             hostMsg = reader.readLine();
                         }
-
                         // Parse the message based on the message type
                         // Type is always in the first token
                         String msgType = hostMsg.split(": ")[1];
@@ -526,17 +533,13 @@ public class Player implements Runnable {
 
                             // Save scores
                             hostMsg = reader.readLine();
-                            String[] scores = hostMsg.split(", ");
                             // First score needs additional logic, since it has
                             //  the data header on it
                             System.out.println("Current Points:\n--------------------------------");
-                            String[] firstScore = scores[0].split(": ");
-                            updatePlayer(firstScore[1], Integer.valueOf(firstScore[2]));
-                            for (int i = 1; i < scores.length; i++) {
-                                String[] scoreInfo = scores[i].split("");
-                                if (scoreInfo[1].charAt(scoreInfo[1].length() - 1) == ',') {
-                                    scoreInfo[1] = scoreInfo[1].substring(0, scoreInfo[1].length() - 1);
-                                }
+                            String[] score = hostMsg.split(": ");
+                            String[] player = score[1].split(", ");
+                            for (int i = 1; i < player.length; i++) {
+                                String[] scoreInfo = player[i].split(" - ");
                                 updatePlayer(scoreInfo[0], Integer.valueOf(scoreInfo[1]));
                             }
 
@@ -551,6 +554,10 @@ public class Player implements Runnable {
                             }
                             System.out.println("Starting hand:");
                             System.out.println(Arrays.toString(hand.toArray()));
+
+                            // Get the first card in the discard pile
+                            hostMsg = reader.readLine();
+                            System.out.println("First card in discard pile: " + hostMsg);
 
                             // Send back an OK
                             String[] data = {"BEGIN"};
@@ -570,7 +577,7 @@ public class Player implements Runnable {
                             clearReader();
                             reader.close();
                             writer.close();
-                            socket.close();
+                            socket.close();                            
                             return;
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[5])) {
                             // OK - msg received
@@ -602,7 +609,6 @@ public class Player implements Runnable {
                             // Resend the last message
                             writer.println(curMessage.composeMessage());
                         }
-                        clearReader();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

@@ -75,10 +75,11 @@ public class StatusMessage {
             this.body = "Player: " + data[0] + "\nMove: " + data[1] + "\nNext Player: " + data[2];
         } else if (this.msgType.compareTo(MESSAGE_TYPE[3]) == 0) {
             // BEGIN
-            // Need a first player, round number, scores, and starting hand
-            if (data.length != 4) return;
+            if (data.length != 5) {
+                return;
+            }
 
-            this.body = "First Player: " + data[0] + "\nRound: " + data[1] + "\nScores: " + data[2] + "\nStarting Hand: " + data[3];
+            this.body = "First Player: " + data[0] + "\nRound: " + data[1] + "\nScores: " + data[2] + "\nStarting Hand: " + data[3] + "\n" + data[4];
         } else if (this.msgType.compareTo(MESSAGE_TYPE[4]) == 0) {
             // END
             // Need a winning player

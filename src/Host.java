@@ -155,9 +155,7 @@ public class Host implements Runnable {
                 String hostingPlayerMsg = hostingPlayer.reader.readLine();
                 if (hostingPlayerMsg == null || hostingPlayerMsg.equals("")) continue;
 
-                System.out.println("Host player sent: " + hostingPlayerMsg);
                 if (hostingPlayerMsg.equals("start")) {
-                    System.out.println("Received start command");
                     break;
                 }
             }
@@ -174,18 +172,19 @@ public class Host implements Runnable {
     private void gameLoop() {
         // Init the structures
         try {
-            this.deck = new CardPile('D');
-            this.discardPile = new CardPile('P');
-            this.whoseTurn = (int) Math.random() * players.size();
             this.roundNum = 1;
             this.numPlayers = players.size();
-
+            
             for (int i = 0; i < numPlayers; i++) {
                 players.get(i).heldCards = new ArrayList<Card>();
             }
-
+            
             // Game loop
             while (true) {
+                this.deck = new CardPile('D');
+                this.discardPile = new CardPile('P');
+                this.whoseTurn = (int) (Math.random() * (numPlayers + 1));
+
                 // Check scores of all players and compose into msg while doing so
                 String scores = new String();
                 ArrayList<PlayerHandler> winningPlayers = new ArrayList<PlayerHandler>();
@@ -225,11 +224,19 @@ public class Host implements Runnable {
                 // Send out BEGIN messages
                 String firstPlayer = players.get(whoseTurn).playerAlias;
                 String roundNumber = String.valueOf(this.roundNum);
+                // First card in discard pile
+                Card firstDiscard = deck.drawCard();
+                discardPile.addCard(firstDiscard);
+                String firstDis = firstDiscard.toString();
                 for (int i = 0; i < numPlayers; i++) {
-                    String startingCards = Arrays.toString(players.get(i).heldCards.toArray());
-                    String[] data = {firstPlayer, roundNumber, scores, startingCards};
+                    String startingCards = "";
+                    for (int j = 0; j < players.get(i).heldCards.size(); j++) {
+                        startingCards += players.get(i).heldCards.get(j).toString() + ", ";
+                    }
+                    String[] data = {firstPlayer, roundNumber, scores, startingCards, firstDis};
                     players.get(i).sendMsg("BEGIN", data);
                 }
+                // Make sure players send back an OK
                 recvReplies("BEGIN");
 
                 // Enter round loop
@@ -337,7 +344,7 @@ public class Host implements Runnable {
 
     /**
      * Helper method to make sure that all players send back an OK message for
-     * a previously sent message
+     * a previously sent message. Requires the reader to be cleared
      * @param messageType The message type to be acknowledged
      */
     void recvReplies(String messageType) {
@@ -351,12 +358,24 @@ public class Host implements Runnable {
             for (int i = 0; i < nonReplied.size(); i++) {
                 PlayerHandler player = nonReplied.get(i);
                 try {
+                    Thread.sleep(100);
+                    // Header line 1
                     String msg = player.reader.readLine();
+                    if (msg == null || msg.equals("")) continue;
 
-                    String msgType = msg.split(": ")[1];
-                    if (msgType.equals(messageType)) {
+                    // Header line 2
+                    msg = player.reader.readLine();
+                    // Between header and body
+                    msg = player.reader.readLine();
+                    // Skip to OK body
+                    msg = player.reader.readLine();
+
+                    player.clearReader();
+                    if (msg.equals(messageType)) {
+                        player.clearReader();
                         // ACK received for the type - remove it from list
                         nonReplied.remove(i);
+                        i--;
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
