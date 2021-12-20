@@ -245,16 +245,17 @@ public class Host implements Runnable {
                     curPlayer.clearReader();
                     // Look for the deck/discard pile taking
                     String action = curPlayer.reader.readLine();
-                    while (action == null || action.equals("")) {
+                    while (!action.equals("T") && !action.equals("P")) {
+                        while (action == null || action.equals("")) {
+                            action = curPlayer.reader.readLine();
+                        }
+                        // Sender
+                        action = curPlayer.reader.readLine();
+                        // Intermediary
+                        action = curPlayer.reader.readLine();
+                        // Action
                         action = curPlayer.reader.readLine();
                     }
-                    // Sender
-                    action = curPlayer.reader.readLine();
-                    // Intermediary
-                    action = curPlayer.reader.readLine();
-                    // Action
-                    action = curPlayer.reader.readLine();
-                    System.out.println("Action: " + action);
 
                     String cardData = "";
                     if (action.equals("T")) {
@@ -277,8 +278,7 @@ public class Host implements Runnable {
                     } else if (action.equals("P")) {
                         // Get the position in the discard pile
                         action = curPlayer.reader.readLine();
-                        String discardPos = action.split(": ")[1];
-                        Card[] discardCards = discardPile.discardDraw(Integer.valueOf(discardPos));
+                        Card[] discardCards = discardPile.discardDraw(Integer.valueOf(action));
 
                         // Set the data piece with the card information
                         for (int i = 0; i < discardCards.length; i++) {
@@ -304,6 +304,9 @@ public class Host implements Runnable {
                     action = curPlayer.reader.readLine();
                     // Intermediary
                     action = curPlayer.reader.readLine();
+                    // Discard identifier
+                    action = curPlayer.reader.readLine();
+                    // Hand
                     action = curPlayer.reader.readLine();
 
                     // Get all of the cards in the player's hand
@@ -444,7 +447,7 @@ public class Host implements Runnable {
             message.makeHeader();
             message.makeBody(data);
             String msg = message.composeMessage();
-            System.out.println("Sending\n------------\n" + msg + "--------------\nto " + playerAlias + "\n");
+            // System.out.println("Sending\n------------\n" + msg + "--------------\nto " + playerAlias + "\n");
             writer.println(msg);
         }
 

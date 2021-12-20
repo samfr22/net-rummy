@@ -99,9 +99,10 @@ public class Player implements Runnable {
                 System.out.println(self.name + ", What would you like to do?");
                 System.out.println("(T)ake a card from the deck");
                 System.out.println("(P)ick a card from the discard pile");
+                System.out.println("(L)ist your melds");
                 String action = input.nextLine();
 
-                while (!action.equals("T") && !action.equals("P")) {
+                while (!action.equals("T") && !action.equals("P") && !action.equals("L")) {
                     System.out.println("Invalid action - try again:");
                     action = input.nextLine();
                 }
@@ -113,15 +114,22 @@ public class Player implements Runnable {
                     this.communicator.sendMsg("TURN", data);
                 } else if (action.equals("P")) {
 
+                    System.out.println("Position in discard to pull from: ");
                     // Need a position in the discard pile to take from
                     String discardPos = input.nextLine();
-                    while (Integer.valueOf(discardPos) < 0) {
-                        System.out.println("Need a positive number");
+                    while (discardPos.equals("") || Integer.valueOf(discardPos) < 0) {
+                        System.out.println("Need a valid number");
                         discardPos = input.nextLine();
                     }
 
                     String[] data = {"P", discardPos};
                     this.communicator.sendMsg("TURN", data);
+                } else {
+                    System.out.println("Your melds:\n----------------");
+                    for (int i = 0; i < sets.size(); i++) {
+                        System.out.println(sets.get(i).toString());
+                    }
+                    System.out.println("----------------------------------");
                 }
 
                 // Check the buffer to be filled by the listener - once filled,
@@ -158,6 +166,11 @@ public class Player implements Runnable {
                     }
 
                     if (action.equals("A")) {
+                        if (sets.size() == 0) {
+                            System.out.println("You do not have any melds");
+                            continue;
+                        }
+
                         // Adding a card from hand to an exiting meld
                         System.out.println("Adding a card to a meld. Input card in <Rank> of <Suit> format");
                         String meld = input.nextLine();
@@ -200,6 +213,7 @@ public class Player implements Runnable {
                     } else if (action.equals("S")) {
                         // Setting down a set of cards - get the cards
                         System.out.println("Making a meld - input cards in `<Rank> of <Suit>` form");
+                        System.out.println("Runs must be inputted in increasing order");
                         System.out.println("Type `End` to continue");
 
                         String meldCard = input.nextLine();
@@ -271,12 +285,7 @@ public class Player implements Runnable {
                 String[] data = {"D", handRemaining, points, discarding.toString()};
                 this.communicator.sendMsg("TURN", data);
 
-                // Sleep to allow the listener to end the turn
-                try {
-                    Thread.sleep(5000);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                this.turn = 0;
             }
         }
     }
@@ -379,6 +388,7 @@ public class Player implements Runnable {
         private Thread listen;
         private Listener listener;
         private StatusMessage curMessage;
+        private String alias;
 
         public Communicator(String ip, String alias) {
             try {
@@ -386,6 +396,7 @@ public class Player implements Runnable {
                 this.socket = new Socket(ip, 50100);
                 InetAddress hostIp = socket.getInetAddress();
                 System.out.println("Connection made to " + hostIp);
+                this.alias = alias;
 
                 // Start the I/O listeners
                 this.writer = new PrintWriter(socket.getOutputStream(), true);
@@ -431,7 +442,7 @@ public class Player implements Runnable {
          * @param data The data to be put into the body
          */
         public void sendMsg(String type, String[] data) {
-            StatusMessage msg = new StatusMessage(type, self.name);
+            StatusMessage msg = new StatusMessage(type, alias);
             this.curMessage = msg;
             msg.makeHeader();
             msg.makeBody(data);
@@ -490,6 +501,7 @@ public class Player implements Runnable {
                             sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[2])) {
                             // MOVE - a player has made a move
+                            System.out.println("----------------------------------");
                             hostMsg = reader.readLine();
                             String playerJustWent = hostMsg.split(": ")[1];
                             System.out.println(playerJustWent + " finished their turn:");
@@ -500,8 +512,8 @@ public class Player implements Runnable {
                                 OtherPlayer player = otherPlayers.get(i);
                                 if (player.name.equals(playerJustWent)) {
                                     player.numPoints = Integer.valueOf(pointAmount);
-                                    System.out.println(playerJustWent + "'s points: " + player.numPoints);
                                 }
+                                System.out.println(player.name + "'s points: " + player.numPoints);
                             }
                             
                             // Output next player
@@ -521,6 +533,8 @@ public class Player implements Runnable {
                             System.out.println("Discard pile:\n" + hostMsg);
 
                             System.out.println();
+
+                            System.out.println("----------------------------------");
 
                             // Send back an OK
                             String[] data = {"MOVE"};
@@ -572,6 +586,8 @@ public class Player implements Runnable {
                             System.out.println("First card in discard pile: " + hostMsg);
                         
                             Player.gamePhase = 'G';
+
+                            System.out.println("----------------------------------");
 
                             // Send back an OK
                             String[] data = {"BEGIN"};
