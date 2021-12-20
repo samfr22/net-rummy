@@ -137,8 +137,11 @@ public class Player implements Runnable {
                 }
 
                 // Add the cards from the buffer to the hand
+                System.out.println("You received:");
                 while (buffer.size() > 0) {
-                    this.hand.add(buffer.remove(0));
+                    Card temp = buffer.remove(0);
+                    System.out.println(temp.toString());
+                    this.hand.add(temp);
                 }
 
                 // Allow player to continuously make melds until they discard
@@ -479,8 +482,8 @@ public class Player implements Runnable {
                             System.out.println("New player connected: " + playerConnected);
                             otherPlayers.add(new OtherPlayer(playerConnected));
                             // Send back an OK
-                            // String[] data = {"CONNECT"};
-                            // sendMsg("OK", data);
+                            String[] data = {"CONNECT"};
+                            sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[2])) {
                             // MOVE - a player has made a move
                             hostMsg = reader.readLine();
@@ -516,8 +519,8 @@ public class Player implements Runnable {
                             System.out.println();
 
                             // Send back an OK
-                            // String[] data = {"MOVE"};
-                            // sendMsg("OK", data);
+                            String[] data = {"MOVE"};
+                            sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[3])) {
                             // BEGIN - starting round
                             
@@ -567,8 +570,8 @@ public class Player implements Runnable {
                             Player.gamePhase = 'G';
 
                             // Send back an OK
-                            // String[] data = {"BEGIN"};
-                            // sendMsg("OK", data);
+                            String[] data = {"BEGIN"};
+                            sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[4])) {
                             // END - game over
                             // Display winner and end game
@@ -577,8 +580,8 @@ public class Player implements Runnable {
                             System.out.println("Winner: " + winningPlayer[1]);
                             
                             // Send back OK and then close connection
-                            // String[] data = {"END"};
-                            // sendMsg("OK", data);
+                            String[] data = {"END"};
+                            sendMsg("OK", data);
                             
                             Player.gamePhase = 'E';
                             clearReader();

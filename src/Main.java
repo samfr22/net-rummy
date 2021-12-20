@@ -75,8 +75,15 @@ public class Main {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                Player player = new Player(address, alias, true);
-                player.run();
+                Thread play = new Thread(new Player(address, alias, true));
+                play.start();
+
+                try {
+                    play.join();
+                    host.join();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             } else if (gameChoice.equals("3")) {
                 break;
             } else {

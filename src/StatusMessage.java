@@ -90,14 +90,11 @@ public class StatusMessage {
         } else if (this.msgType.compareTo(MESSAGE_TYPE[5]) == 0) {
             // OK
             // Need a message type being acknowledged
-            if (data.length != 1) return;
-            // If the type being acknowledged is TURN, need a card confirmation
-            if (data[0].equals("TURN") && data.length != 2) return;
+            if (data.length < 1) return;
 
-            if (data[0].equals("TURN")) {
-                this.body = data[0] + "\n" + data[1];
-            } else {
-                this.body = data[0];
+            this.body = "";
+            for (int i = 0; i < data.length; i++) {
+                this.body += data[i] + "\n";
             }
         } else if (this.msgType.compareTo(MESSAGE_TYPE[6]) == 0) {
             // ERR

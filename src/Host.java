@@ -241,8 +241,8 @@ public class Host implements Runnable {
 
                 // Enter round loop
                 PlayerHandler curPlayer = players.get(whoseTurn);
-                // curPlayer.clearReader();
                 while (!outOfCards()) {
+                    curPlayer.clearReader();
                     // Look for the deck/discard pile taking
                     String action = curPlayer.reader.readLine();
                     while (action == null || action.equals("")) {
@@ -254,6 +254,7 @@ public class Host implements Runnable {
                     action = curPlayer.reader.readLine();
                     // Action
                     action = curPlayer.reader.readLine();
+                    System.out.println("Action: " + action);
 
                     String cardData = "";
                     if (action.equals("T")) {
@@ -273,7 +274,6 @@ public class Host implements Runnable {
 
                         // Set data as the card
                         cardData = topCard.toString();
-                        System.out.println("Top card of deck: " + cardData);
                     } else if (action.equals("P")) {
                         // Get the position in the discard pile
                         action = curPlayer.reader.readLine();
@@ -357,7 +357,7 @@ public class Host implements Runnable {
         for (int i = 0; i < numPlayers; i++) {
             try {
                 // Chance for client to read off the channel
-                Thread.sleep(100);
+                Thread.sleep(1000);
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -444,8 +444,7 @@ public class Host implements Runnable {
             message.makeHeader();
             message.makeBody(data);
             String msg = message.composeMessage();
-            if (msgType.equals("TURN"))
-                System.out.println("Sending\n------------\n" + msg + "--------------\nto " + playerAlias + "\n");
+            System.out.println("Sending\n------------\n" + msg + "--------------\nto " + playerAlias + "\n");
             writer.println(msg);
         }
 
