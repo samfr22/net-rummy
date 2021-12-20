@@ -20,7 +20,6 @@ public class Player implements Runnable {
         public OtherPlayer(String name) {
             this.name = name;
             this.numPoints = 0;
-            System.out.println("New player connected: " + this.name);
         }
     }
     
@@ -30,7 +29,7 @@ public class Player implements Runnable {
     private String playerAlias;
     private ArrayList<OtherPlayer> otherPlayers;
     private ArrayList<Card> buffer;
-    private char gamePhase;
+    volatile static char gamePhase;
     private int roundNum;
     private int turn;
     private OtherPlayer self;
@@ -52,7 +51,7 @@ public class Player implements Runnable {
         this.otherPlayers = new ArrayList<OtherPlayer>();
         this.self = new OtherPlayer(name);
         otherPlayers.add(self);
-        this.gamePhase = 'L';
+        gamePhase = 'L';
         this.turn = 0;
         this.roundNum = 0;
     }
@@ -72,17 +71,17 @@ public class Player implements Runnable {
         this.hand = new ArrayList<Card>();
         this.sets = new ArrayList<CardPile>();
         this.buffer = new ArrayList<Card>();
-        while (this.gamePhase == 'L') {
+        while (gamePhase == 'L') {
             try {
                 if (isHost) {
                     System.out.println("Start game? (y/n)");
                     String in = input.nextLine();
                     if (in.equalsIgnoreCase("y")) {
-                        this.gamePhase = 'G';
                         // Write a start cue to the host
                         this.communicator.writer.println("start");
+                        // Nothing else special about the host from here on out
+                        isHost = false;
                     }
-                    Thread.sleep(400);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -92,7 +91,7 @@ public class Player implements Runnable {
     }
 
     private void gameLoop() {
-        while (this.gamePhase == 'G') {
+        while (gamePhase == 'G') {
             // Player can't perform actions until designated by host
             if (this.turn != 0) {
                 // Display all cards and open up actions
@@ -112,7 +111,7 @@ public class Player implements Runnable {
                 // Send a message for either the top card of the deck or for a
                 //  set from the discard pile
                 if (action.equals("T")) {
-                    String[] data = {"T"};
+                    String[] data = {"T", ""};
                     this.communicator.sendMsg("TURN", data);
                 } else if (action.equals("P")) {
 
@@ -369,7 +368,8 @@ public class Player implements Runnable {
         private Socket socket;
         private PrintWriter writer;
         private BufferedReader reader;
-        private Thread listen = new Thread(new Listener());
+        private Thread listen;
+        private Listener listener;
         private StatusMessage curMessage;
 
         public Communicator(String ip, String alias) {
@@ -382,6 +382,9 @@ public class Player implements Runnable {
                 // Start the I/O listeners
                 this.writer = new PrintWriter(socket.getOutputStream(), true);
                 this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+                this.listener = new Listener();
+                this.listen = new Thread(this.listener);
                 
                 // Send a CONNECT message to get approval to join the lobby
                 String[] data = {ip, "50100"};
@@ -392,13 +395,13 @@ public class Player implements Runnable {
                 while (ok == null || ok.equals("")) {
                     ok = reader.readLine();
                 }
+                this.listener.clearReader();
                 String msgType = ok.split(": ")[1];
                 if (!msgType.equals("OK")) {
                     System.out.println("Connection denied by host");
                     ok = reader.readLine();
                     ok = reader.readLine();
                     System.out.println(ok);
-                    clearReader();
 
                     this.reader.close();
                     this.writer.close();
@@ -407,8 +410,6 @@ public class Player implements Runnable {
                     listen = null;
                     return;
                 }
-
-                clearReader();
 
                 listen.start();
             } catch (Exception e) {
@@ -426,18 +427,9 @@ public class Player implements Runnable {
             this.curMessage = msg;
             msg.makeHeader();
             msg.makeBody(data);
-            writer.println(msg.composeMessage());
-        }
-
-        /**
-         * Clear out the output buffer after useful information has been taken
-         */
-        public void clearReader() {
-            try {
-                while (!reader.readLine().equals(""));
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            String netMsg = msg.composeMessage();
+            System.out.println("Sending\n-----------\n" + netMsg + "-------\n");
+            writer.println(netMsg);
         }
 
 
@@ -446,6 +438,18 @@ public class Player implements Runnable {
          * host
          */
         class Listener implements Runnable {
+
+            /**
+             * Clear out the output buffer after useful information has been taken
+             */
+            public void clearReader() {
+                try {
+                    Thread.yield();
+                    while (!reader.readLine().equals(""));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
 
             public void run() {
                 while (true) {
@@ -459,6 +463,7 @@ public class Player implements Runnable {
                         }
                         // Parse the message based on the message type
                         // Type is always in the first token
+                        System.out.println("RECEIVED: " + hostMsg);
                         String msgType = hostMsg.split(": ")[1];
 
                         // Player doesn't care about sender (always host),
@@ -471,10 +476,11 @@ public class Player implements Runnable {
                             hostMsg = reader.readLine();
                             String playerConnected = hostMsg.split(": ")[1];
 
+                            System.out.println("New player connected: " + playerConnected);
                             otherPlayers.add(new OtherPlayer(playerConnected));
                             // Send back an OK
-                            String[] data = {"CONNECT"};
-                            sendMsg("OK", data);
+                            // String[] data = {"CONNECT"};
+                            // sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[2])) {
                             // MOVE - a player has made a move
                             hostMsg = reader.readLine();
@@ -510,8 +516,8 @@ public class Player implements Runnable {
                             System.out.println();
 
                             // Send back an OK
-                            String[] data = {"MOVE"};
-                            sendMsg("OK", data);
+                            // String[] data = {"MOVE"};
+                            // sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[3])) {
                             // BEGIN - starting round
                             
@@ -533,15 +539,14 @@ public class Player implements Runnable {
 
                             // Save scores
                             hostMsg = reader.readLine();
-                            // First score needs additional logic, since it has
-                            //  the data header on it
                             System.out.println("Current Points:\n--------------------------------");
                             String[] score = hostMsg.split(": ");
                             String[] player = score[1].split(", ");
-                            for (int i = 1; i < player.length; i++) {
+                            for (int i = 0; i < player.length; i++) {
                                 String[] scoreInfo = player[i].split(" - ");
                                 updatePlayer(scoreInfo[0], Integer.valueOf(scoreInfo[1]));
                             }
+                            System.out.println("--------------------------------");
 
                             // Save the starting hand for the player
                             hand = new ArrayList<Card>();
@@ -558,10 +563,12 @@ public class Player implements Runnable {
                             // Get the first card in the discard pile
                             hostMsg = reader.readLine();
                             System.out.println("First card in discard pile: " + hostMsg);
+                        
+                            Player.gamePhase = 'G';
 
                             // Send back an OK
-                            String[] data = {"BEGIN"};
-                            sendMsg("OK", data);
+                            // String[] data = {"BEGIN"};
+                            // sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[4])) {
                             // END - game over
                             // Display winner and end game
@@ -570,10 +577,10 @@ public class Player implements Runnable {
                             System.out.println("Winner: " + winningPlayer[1]);
                             
                             // Send back OK and then close connection
-                            String[] data = {"END"};
-                            sendMsg("OK", data);
+                            // String[] data = {"END"};
+                            // sendMsg("OK", data);
                             
-                            gamePhase = 'E';
+                            Player.gamePhase = 'E';
                             clearReader();
                             reader.close();
                             writer.close();
@@ -609,6 +616,7 @@ public class Player implements Runnable {
                             // Resend the last message
                             writer.println(curMessage.composeMessage());
                         }
+                        System.out.println();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

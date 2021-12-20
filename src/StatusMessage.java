@@ -64,6 +64,7 @@ public class StatusMessage {
             // Need a move identifier and any information needed for the turn
             if (data.length < 1) return;
 
+            this.body = "";
             for (int i = 0; i < data.length; i++) {
                 this.body += data[i] + "\n";
             }

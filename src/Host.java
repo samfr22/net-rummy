@@ -1,7 +1,6 @@
 package src;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.net.*;
 import java.io.*;
 
@@ -161,6 +160,7 @@ public class Host implements Runnable {
             }
 
             listener.interrupt();
+            listener = null;
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -183,7 +183,7 @@ public class Host implements Runnable {
             while (true) {
                 this.deck = new CardPile('D');
                 this.discardPile = new CardPile('P');
-                this.whoseTurn = (int) (Math.random() * (numPlayers + 1));
+                this.whoseTurn = (int) (Math.random() * numPlayers);
 
                 // Check scores of all players and compose into msg while doing so
                 String scores = new String();
@@ -193,7 +193,7 @@ public class Host implements Runnable {
                     if (player.numPoints >= 500) {
                         winningPlayers.add(player);
                     }
-                    scores += player.playerAlias + ": " + player.numPoints + ", ";
+                    scores += player.playerAlias + " - " + player.numPoints + ", ";
                 }
 
                 // Check if any winners
@@ -241,18 +241,22 @@ public class Host implements Runnable {
 
                 // Enter round loop
                 PlayerHandler curPlayer = players.get(whoseTurn);
+                // curPlayer.clearReader();
                 while (!outOfCards()) {
                     // Look for the deck/discard pile taking
                     String action = curPlayer.reader.readLine();
                     while (action == null || action.equals("")) {
                         action = curPlayer.reader.readLine();
                     }
+                    // Sender
                     action = curPlayer.reader.readLine();
+                    // Intermediary
+                    action = curPlayer.reader.readLine();
+                    // Action
                     action = curPlayer.reader.readLine();
 
-                    String cardTakeAction = action.split(": ")[1];
                     String cardData = "";
-                    if (cardTakeAction.equals("T")) {
+                    if (action.equals("T")) {
                         // Deal the top card of the deck out
                         Card topCard = deck.drawCard();
                         if (topCard == null) {
@@ -269,7 +273,8 @@ public class Host implements Runnable {
 
                         // Set data as the card
                         cardData = topCard.toString();
-                    } else if (cardTakeAction.equals("P")) {
+                        System.out.println("Top card of deck: " + cardData);
+                    } else if (action.equals("P")) {
                         // Get the position in the discard pile
                         action = curPlayer.reader.readLine();
                         String discardPos = action.split(": ")[1];
@@ -295,8 +300,9 @@ public class Host implements Runnable {
                     }
 
                     // Skip to the body
+                    // Sender
                     action = curPlayer.reader.readLine();
-                    action = curPlayer.reader.readLine();
+                    // Intermediary
                     action = curPlayer.reader.readLine();
                     action = curPlayer.reader.readLine();
 
@@ -348,39 +354,14 @@ public class Host implements Runnable {
      * @param messageType The message type to be acknowledged
      */
     void recvReplies(String messageType) {
-        ArrayList<PlayerHandler> nonReplied = new ArrayList<PlayerHandler>();
         for (int i = 0; i < numPlayers; i++) {
-            nonReplied.add(players.get(i));
-        }
-
-        // Get OK from each player
-        while (nonReplied.size() > 0) {
-            for (int i = 0; i < nonReplied.size(); i++) {
-                PlayerHandler player = nonReplied.get(i);
-                try {
-                    Thread.sleep(100);
-                    // Header line 1
-                    String msg = player.reader.readLine();
-                    if (msg == null || msg.equals("")) continue;
-
-                    // Header line 2
-                    msg = player.reader.readLine();
-                    // Between header and body
-                    msg = player.reader.readLine();
-                    // Skip to OK body
-                    msg = player.reader.readLine();
-
-                    player.clearReader();
-                    if (msg.equals(messageType)) {
-                        player.clearReader();
-                        // ACK received for the type - remove it from list
-                        nonReplied.remove(i);
-                        i--;
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+            try {
+                // Chance for client to read off the channel
+                Thread.sleep(100);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+            players.get(i).clearReader();
         }
     }
 
@@ -463,8 +444,9 @@ public class Host implements Runnable {
             message.makeHeader();
             message.makeBody(data);
             String msg = message.composeMessage();
-            // System.out.println("Sending\n------------\n" + msg + "--------------\nto " + playerAlias);
-            writer.println(message.composeMessage());
+            if (msgType.equals("TURN"))
+                System.out.println("Sending\n------------\n" + msg + "--------------\nto " + playerAlias + "\n");
+            writer.println(msg);
         }
 
         /**
