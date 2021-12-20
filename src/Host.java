@@ -51,7 +51,8 @@ public class Host implements Runnable {
             initConnect = hostingPlayer.reader.readLine();
             hostingPlayer.playerAlias = initConnect.split(": ")[1];
 
-            System.out.println("Hosting Player: " + hostingPlayer.playerAlias + ".\nOpening lobby at " + InetAddress.getLocalHost().toString() + "...");
+            hostingPlayer.clearReader();
+            System.out.println("Host Connected.\nOpening lobby at " + InetAddress.getLocalHost().toString() + "...\n");
             lobbyPhase();
 
             // Game continues and ends from the lobby phase method
@@ -60,6 +61,11 @@ public class Host implements Runnable {
         }
     }
 
+    /**
+     * Inner class to allow the lobby phase to be using multiple threads, as
+     * the accept() method for a new connection blocks. Handles new player
+     * connections and adding them to the player list
+     */
     class Lobby implements Runnable {
         public void run() {
             try {
@@ -90,17 +96,17 @@ public class Host implements Runnable {
                     // Save the player name from the sender field
                     handler.playerAlias = pieces[1];
 
+                    handler.clearReader();
+
                     // Check that no other player is using the name
-                    if (players.size() > 0) {
-                        for (int i = 0; i < players.size(); i++) {
-                            if (players.get(i).playerAlias.equals(handler.playerAlias)) {
-                                // Name in use
-                                String[] data = {"CONNECT", "Name in use"};
-                                handler.sendMsg("ERR", data);
-                                handler.writer.close();
-                                handler.reader.close();
-                                handler.socket.close();
-                            }
+                    for (int i = 0; i < players.size(); i++) {
+                        if (players.get(i).playerAlias.equals(handler.playerAlias)) {
+                            // Name in use
+                            String[] data = {"CONNECT", "Name in use"};
+                            handler.sendMsg("ERR", data);
+                            handler.writer.close();
+                            handler.reader.close();
+                            handler.socket.close();
                         }
                     }
 
@@ -114,8 +120,6 @@ public class Host implements Runnable {
                     for (int i = 0; i < players.size(); i++) {
                         players.get(i).sendMsg("CONNECT", data2);
                     }
-
-                    System.out.println("New player connected: " + handler.playerAlias);
 
                     // Add player to list and look for a new player
                     players.add(handler);
@@ -134,7 +138,13 @@ public class Host implements Runnable {
 
             // Spin until either the max number of players has been reached or the
             //  host tells the game to start
-            while (this.players.size() < 5 && !hostingPlayer.reader.readLine().equals("start"));
+            while (this.players.size() < 5) {
+                Thread.sleep(10000);
+                // Check if the host player has told it to start
+                if (hostingPlayer.reader.readLine().equals("start")) {
+                    break;
+                }
+            }
 
             listener.interrupt();
         } catch (Exception e) {
@@ -209,20 +219,15 @@ public class Host implements Runnable {
                 // Enter round loop
                 PlayerHandler curPlayer = players.get(whoseTurn);
                 while (!outOfCards()) {
-                    // Wait for input from the current player
-                    String turnMsg = curPlayer.reader.readLine();
-                    while (turnMsg == null || turnMsg.equals("")) {
-                        turnMsg = curPlayer.reader.readLine();
-                    }
-
                     // Look for the deck/discard pile taking
                     String action = curPlayer.reader.readLine();
                     while (action == null || action.equals("")) {
                         action = curPlayer.reader.readLine();
                     }
+                    action = curPlayer.reader.readLine();
+                    action = curPlayer.reader.readLine();
 
-                    String[] actionMsg = action.split("\n");
-                    String cardTakeAction = actionMsg[3].split(": ")[1];
+                    String cardTakeAction = action.split(": ")[1];
                     String cardData = "";
                     if (cardTakeAction.equals("T")) {
                         // Deal the top card of the deck out
@@ -243,7 +248,8 @@ public class Host implements Runnable {
                         cardData = topCard.toString();
                     } else if (cardTakeAction.equals("P")) {
                         // Get the position in the discard pile
-                        String discardPos = actionMsg[4].split(": ")[1];
+                        action = curPlayer.reader.readLine();
+                        String discardPos = action.split(": ")[1];
                         Card[] discardCards = discardPile.discardDraw(Integer.valueOf(discardPos));
 
                         // Set the data piece with the card information
@@ -252,6 +258,7 @@ public class Host implements Runnable {
                         }
                     }
 
+                    curPlayer.clearReader();
                     // Send back the retrieved card(s)
                     String[] data = {"TURN", cardData};
                     curPlayer.sendMsg("OK", data);
@@ -264,21 +271,30 @@ public class Host implements Runnable {
                         turnOver = curPlayer.reader.readLine();
                     }
 
-                    String[] pieces = turnOver.split("\n");
+                    // Skip to the body
+                    action = curPlayer.reader.readLine();
+                    action = curPlayer.reader.readLine();
+                    action = curPlayer.reader.readLine();
+                    action = curPlayer.reader.readLine();
+
                     // Get all of the cards in the player's hand
                     curPlayer.heldCards.clear();
-                    String[] hand = pieces[4].split(": ")[1].split(", ");
+                    String[] hand = action.split(": ")[1].split(", ");
                     for (int i = 0; i < hand.length; i++) {
                         String[] card = hand[i].split(" of ");
                         curPlayer.heldCards.add(new Card(card[1], card[0].charAt(0)));
                     }
                     // Save the points for player
-                    curPlayer.numPoints = Integer.valueOf(pieces[5].split(": ")[1]);
+                    action = curPlayer.reader.readLine();
+                    curPlayer.numPoints = Integer.valueOf(action.split(": ")[1]);
 
                     // Get the discarded card
-                    String[] discarded = pieces[6].split("of");
+                    action = curPlayer.reader.readLine();
+                    String[] discarded = action.split(" of ");
                     Card discardedCard = new Card(discarded[1], discarded[0].charAt(0));
                     discardPile.addCard(discardedCard);
+
+                    curPlayer.clearReader();
                     
                     // Update for next turn
                     this.whoseTurn = (whoseTurn + 1) % (numPlayers);
@@ -320,9 +336,8 @@ public class Host implements Runnable {
                 PlayerHandler player = nonReplied.get(i);
                 try {
                     String msg = player.reader.readLine();
-                    if (msg == null || msg.equals("")) continue;
 
-                    String msgType = msg.split("\n")[0].split(": ")[1];
+                    String msgType = msg.split(": ")[1];
                     if (msgType.equals(messageType)) {
                         // ACK received for the type - remove it from list
                         nonReplied.remove(i);
@@ -413,6 +428,17 @@ public class Host implements Runnable {
             message.makeHeader();
             message.makeBody(data);
             writer.println(message.composeMessage());
+        }
+
+        /**
+         * Clear out the output buffer after useful information has been taken
+         */
+        public void clearReader() {
+            try {
+                while (!reader.readLine().equals(""));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }    
 }

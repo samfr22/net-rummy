@@ -34,11 +34,13 @@ public class Player {
     private int roundNum;
     private int turn;
     private int numPoints;
+    private boolean isHost;
 
-    public Player(String ip, String name) {
+    public Player(String ip, String name, boolean host) {
         // Set up the communicator with the given ip
         this.playerAlias = name;
         this.communicator = new Communicator(ip, name);
+        this.isHost = host;
         if (this.communicator == null) {
             // Denied access to game
             return;
@@ -65,22 +67,24 @@ public class Player {
         this.hand = new ArrayList<Card>();
         this.sets = new ArrayList<CardPile>();
         this.buffer = new ArrayList<Card>();
+        Scanner in = new Scanner(System.in);
         while (this.gamePhase == 'L') {
             try {
-                Scanner in = new Scanner(System.in);
-                if (this.communicator.socket.getInetAddress().equals(InetAddress.getLocalHost())) {
+                if (isHost) {
                     System.out.println("Start game? (y/n)");
                     String input = in.nextLine();
                     if (input.equalsIgnoreCase("y")) {
                         this.gamePhase = 'G';
+                        // Write a start cue to the host
+                        this.communicator.writer.println("start");
                     }
                 }
-                in.close();
                 Thread.sleep(4000);
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
+        in.close();
     }
 
     private void gameLoop() {
@@ -374,20 +378,28 @@ public class Player {
                 // Send a CONNECT message to get approval to join the lobby
                 String[] data = {ip, "50100"};
                 sendMsg("CONNECT", data);
+
                 // Make sure lobby sends back an OK
                 String ok = reader.readLine();
                 while (ok == null || ok.equals("")) {
                     ok = reader.readLine();
                 }
-                String msgType = ok.split("\n")[0].split(": ")[1];
+                String msgType = ok.split(": ")[1];
                 if (!msgType.equals("OK")) {
                     System.out.println("Connection denied by host");
+                    ok = reader.readLine();
+                    ok = reader.readLine();
+                    System.out.println(ok);
+                    clearReader();
+
                     this.reader.close();
                     this.writer.close();
                     this.socket.close();
                     communicator = null;
                     return;
                 }
+
+                clearReader();
 
                 this.listen.start();
 
@@ -396,6 +408,11 @@ public class Player {
             }
         }
 
+        /**
+         * Helper class to simplify the message sending process
+         * @param type The message type to be sent
+         * @param data The data to be put into the body
+         */
         public void sendMsg(String type, String[] data) {
             System.out.println("Sending a " + type + " message to host");
             StatusMessage msg = new StatusMessage(type, playerAlias);
@@ -403,6 +420,17 @@ public class Player {
             msg.makeHeader();
             msg.makeBody(data);
             writer.println(msg.composeMessage());
+        }
+
+        /**
+         * Clear out the output buffer after useful information has been taken
+         */
+        public void clearReader() {
+            try {
+                while (!reader.readLine().equals(""));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
 
@@ -419,19 +447,18 @@ public class Player {
                         String hostMsg = reader.readLine();
                         if (hostMsg == null || hostMsg.equals("")) continue;
 
-                        String[] msgPieces = hostMsg.split("\n");
-
                         // Parse the message based on the message type
                         // Type is always in the first token
-                        String[] typeHeader = msgPieces[0].split(": ");
-                        String msgType = typeHeader[1];
+                        String msgType = hostMsg.split(": ")[1];
 
                         // Player doesn't care about sender (always host),
                         //  skip to third index
+                        hostMsg = reader.readLine();
 
                         if (msgType.equals(StatusMessage.MESSAGE_TYPE[0])) {
                             // CONNECT - new player in lobby
-                            String[] playerConnected = msgPieces[3].split(": ");
+                            hostMsg = reader.readLine();
+                            String[] playerConnected = hostMsg.split(": ");
 
                             otherPlayers.add(new OtherPlayer(playerConnected[1]));
                             // Send back an OK
@@ -439,10 +466,12 @@ public class Player {
                             sendMsg("OK", data);
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[2])) {
                             // MOVE - a player has made a move
-                            String playerJustWent = msgPieces[3].split(": ")[1];
+                            hostMsg = reader.readLine();
+                            String playerJustWent = hostMsg.split(": ")[1];
                             System.out.println(playerJustWent + " finished their turn:");
 
-                            String pointAmount = msgPieces[4].split(": ")[1];
+                            hostMsg = reader.readLine();
+                            String pointAmount = hostMsg.split(": ")[1];
                             for (int i = 0; i < otherPlayers.size(); i++) {
                                 OtherPlayer player = otherPlayers.get(i);
                                 if (player.name.equals(playerJustWent)) {
@@ -450,21 +479,24 @@ public class Player {
                                     System.out.println(playerJustWent + "'s points: " + player.numPoints);
                                 }
                             }
-
-                            // Display what player discarded
-                            System.out.println(msgPieces[6].split(": ")[1] + " was discarded");
-                            
-                            // Net discard pile displayed
-                            System.out.println(msgPieces[7]);
-
-                            System.out.println();
                             
                             // Output next player
-                            String nextPlayer = msgPieces[5].split(": ")[1];
+                            hostMsg = reader.readLine();
+                            String nextPlayer = hostMsg.split(": ")[1];
                             System.out.println("Next player: " + nextPlayer);
                             if (playerAlias.equals(nextPlayer)) {
                                 turn = 1;
                             }
+
+                            // Display what player discarded
+                            hostMsg = reader.readLine();
+                            System.out.println(hostMsg.split(": ")[1] + " was discarded");
+                            
+                            // Net discard pile displayed
+                            hostMsg = reader.readLine();
+                            System.out.println(hostMsg);
+
+                            System.out.println();
 
                             // Send back an OK
                             String[] data = {"MOVE"};
@@ -473,7 +505,8 @@ public class Player {
                             // BEGIN - starting round
                             
                             // Display first player
-                            String[] firstPlayer = msgPieces[3].split(": ");
+                            hostMsg = reader.readLine();
+                            String[] firstPlayer = hostMsg.split(": ");
                             if (firstPlayer[1].equals(playerAlias)) {
                                 System.out.println("You are going first");
                                 turn = 1;
@@ -482,12 +515,14 @@ public class Player {
                             }
                             
                             // Save round number
-                            String[] round = msgPieces[4].split(": ");
+                            hostMsg = reader.readLine();
+                            String[] round = hostMsg.split(": ");
                             roundNum = Integer.valueOf(round[1]);
                             System.out.println("Round " + roundNum);
 
                             // Save scores
-                            String[] scores = msgPieces[5].split(", ");
+                            hostMsg = reader.readLine();
+                            String[] scores = hostMsg.split(", ");
                             // First score needs additional logic, since it has
                             //  the data header on it
                             System.out.println("Current Points:\n--------------------------------");
@@ -503,7 +538,8 @@ public class Player {
 
                             // Save the starting hand for the player
                             hand = new ArrayList<Card>();
-                            String[] handMsg = msgPieces[6].split(": ");
+                            hostMsg = reader.readLine();
+                            String[] handMsg = hostMsg.split(": ");
                             String[] givenHand = handMsg[1].split(", ");
                             for (int i = 0; i < givenHand.length; i++) {
                                 String[] card = givenHand[i].split(" of ");
@@ -518,7 +554,8 @@ public class Player {
                         } else if (msgType.equals(StatusMessage.MESSAGE_TYPE[4])) {
                             // END - game over
                             // Display winner and end game
-                            String[] winningPlayer = msgPieces[3].split(": ");
+                            hostMsg = reader.readLine();
+                            String[] winningPlayer = hostMsg.split(": ");
                             System.out.println("Winner: " + winningPlayer[1]);
                             
                             // Send back OK and then close connection
@@ -526,6 +563,7 @@ public class Player {
                             sendMsg("OK", data);
                             
                             gamePhase = 'E';
+                            clearReader();
                             reader.close();
                             writer.close();
                             socket.close();
@@ -536,16 +574,19 @@ public class Player {
                             // If its a TURN being ACKed, should either fill 
                             //  the buffer with cards returned by the host or
                             //  end the turn if nothing was sent back
-                            if (msgPieces[3].equals("TURN")) {
-                                if (msgPieces[4].equals("")) {
+                            hostMsg = reader.readLine();
+                            if (hostMsg.equals("TURN")) {
+                                hostMsg = reader.readLine();
+                                if (hostMsg.equals("")) {
                                     // Turn is over
                                     turn = 0;
+                                    clearReader();
                                     continue;
                                 }
 
                                 // Need to convert the cards sent back from the
                                 //  host into usable objects
-                                String[] retCards = msgPieces[4].split(", ");
+                                String[] retCards = hostMsg.split(", ");
                                 for (int i = 0; i < retCards.length; i++) {
                                     String[] card = retCards[i].split(" of ");
                                     buffer.add(new Card(card[1], card[0].charAt(0)));
@@ -557,6 +598,7 @@ public class Player {
                             // Resend the last message
                             writer.println(curMessage.composeMessage());
                         }
+                        clearReader();
                     } catch (Exception e) {
                         e.printStackTrace();
                     }

@@ -48,7 +48,7 @@ public class Main {
                 }
 
                 System.out.println("Connecting to host...");
-                Player player = new Player(host, alias);
+                Player player = new Player(host, alias, false);
 
                 // Let the game run until the host decides to end
                 player.run();
@@ -68,7 +68,7 @@ public class Main {
                 }
 
                 System.out.println("Connecting to host...");
-                Player player = new Player("127.0.0.1", alias);
+                Player player = new Player("127.0.0.1", alias, true);
                 player.run();
             } else if (gameChoice.equals("3")) {
                 break;
