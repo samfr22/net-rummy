@@ -19,6 +19,7 @@ public class Main {
         System.out.println("\tAll sets must be at least three cards but can be added to later");
         System.out.println("\tPoints are given based on the value of the cards put down in sets");
         System.out.println("\tPoints are lost based on the value of cards still in your hand when the round ends");
+        System.out.println("\tFace cards and aces are worth 10 points each. Non-face cards are worth their printed value");
         System.out.println("\tThe first player to reach 500 points wins\n\n");
 
         while (true) {

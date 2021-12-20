@@ -65,7 +65,7 @@ public class StatusMessage {
             if (data.length < 1) return;
 
             for (int i = 0; i < data.length; i++) {
-                this.body += data[i];
+                this.body += data[i] + "\n";
             }
         } else if (this.msgType.compareTo(MESSAGE_TYPE[2]) == 0) {
             // MOVE
