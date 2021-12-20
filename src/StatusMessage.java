@@ -61,10 +61,12 @@ public class StatusMessage {
             this.body = "IP Address: " + data[0] + "\nPort Num: " + data[1]; 
         } else if (this.msgType.compareTo(MESSAGE_TYPE[1]) == 0) {
             // TURN
-            // Need a prev state, new state, and the number of cards in hand
-            if (data.length != 3) return;
+            // Need a move identifier and any information needed for the turn
+            if (data.length < 1) return;
 
-            this.body = "Previous: " + data[0] + "\nNew: " + data[1] + "\nCards Remaining: " + data[2];
+            for (int i = 0; i < data.length; i++) {
+                this.body += data[i];
+            }
         } else if (this.msgType.compareTo(MESSAGE_TYPE[2]) == 0) {
             // MOVE
             // Need the player that went and their move and the next player to go

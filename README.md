@@ -21,7 +21,8 @@ java src/Main
 ```
 
 Initial options for the program include 1) Joining another lobby, 2) Hosting a new lobby, or 3) Exiting. These can be specified by entering in `1`, `2`, or `3`. Additional prompts will be given to get connection information or to allow the game to begin. During the game, actions can be specified with:
-- `D` to discard a card and end a turn
 - `T` to take a card from the deck
 - `P` to pick a card from the discard pile
-- `S` to make a set
+- `S` to make a new set
+- `A` to add a card to an existing set
+- `D` to discard a card and end a turn

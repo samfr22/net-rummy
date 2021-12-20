@@ -94,16 +94,42 @@ public class CardPile {
     }
 
     /**
-     * Adds a card to the top of the pile. Used for discard piles. If the pile
-     * is not a discard pile, cards cannot be added to the pile
+     * Adds a card to the top of the pile. Used for for discard piles and sets
      * @param card The card to be added to the top of the pile
      */
     public void addCard(Card card) {
-        // Should only be able to add to a discard pile
-        if (this.deckType != PILE_TYPES[1]) return;
+        // Shouldn't be able to put back on the deck
+        if (this.deckType == PILE_TYPES[0]) return;
 
         // Use stack-like ops -> Insert to top
         cards.add(0, card);
     }
 
+    /**
+     * Pile outputted into string
+     */
+    public String toString() {
+        // If a deck, should only return the top card
+        if (this.deckType == PILE_TYPES[0]) {
+            return "Top card: " + cards.get(0).toString();
+        }
+        
+        // Otherwise print out all of the cards in the pile
+        String str = "";
+        for (int i = 0; i < cards.size(); i++) {
+            str += cards.get(i).toString() + ", ";
+        }
+        String ret = str.substring(0, str.length());
+        return ret;
+    }
+
+    /**
+     * Returns all of the cards in the pile. Only usable for non-decks
+     * @return An array of inside the pile
+     */
+    public Card[] allCards() {
+        if (this.deckType == PILE_TYPES[0]) return null;
+
+        return (Card[]) this.cards.toArray();
+    }
 }
