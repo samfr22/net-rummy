@@ -414,7 +414,6 @@ public class Player {
          * @param data The data to be put into the body
          */
         public void sendMsg(String type, String[] data) {
-            System.out.println("Sending a " + type + " message to host");
             StatusMessage msg = new StatusMessage(type, playerAlias);
             this.curMessage = msg;
             msg.makeHeader();
@@ -443,24 +442,29 @@ public class Player {
             public void run() {
                 while (true) {
                     try {
+                        clearReader();
+
                         // Read message from the host
                         String hostMsg = reader.readLine();
-                        if (hostMsg == null || hostMsg.equals("")) continue;
+                        while (hostMsg == null || hostMsg.equals("")) {
+                            hostMsg = reader.readLine();
+                        }
 
                         // Parse the message based on the message type
                         // Type is always in the first token
                         String msgType = hostMsg.split(": ")[1];
 
                         // Player doesn't care about sender (always host),
-                        //  skip to third index
+                        //  skip to the body
+                        hostMsg = reader.readLine();
                         hostMsg = reader.readLine();
 
                         if (msgType.equals(StatusMessage.MESSAGE_TYPE[0])) {
                             // CONNECT - new player in lobby
                             hostMsg = reader.readLine();
-                            String[] playerConnected = hostMsg.split(": ");
+                            String playerConnected = hostMsg.split(": ")[1];
 
-                            otherPlayers.add(new OtherPlayer(playerConnected[1]));
+                            otherPlayers.add(new OtherPlayer(playerConnected));
                             // Send back an OK
                             String[] data = {"CONNECT"};
                             sendMsg("OK", data);

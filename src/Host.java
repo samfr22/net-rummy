@@ -80,8 +80,7 @@ public class Host implements Runnable {
                     }
 
                     // Verify type
-                    String[] pieces = connect.split("\n");
-                    String msgType = pieces[0].split(": ")[1];
+                    String msgType = connect.split(": ")[1];
                     if (!msgType.equals("CONNECT")) {
                         // Send back ERR and close connection
                         String[] data = {"CONNECT"};
@@ -92,11 +91,11 @@ public class Host implements Runnable {
                     }
                     
                     connect = handler.reader.readLine();
-                    pieces = connect.split(": ");
                     // Save the player name from the sender field
-                    handler.playerAlias = pieces[1];
+                    handler.playerAlias = connect.split(": ")[1];
 
                     handler.clearReader();
+
 
                     // Check that no other player is using the name
                     for (int i = 0; i < players.size(); i++) {
@@ -107,6 +106,7 @@ public class Host implements Runnable {
                             handler.writer.close();
                             handler.reader.close();
                             handler.socket.close();
+                            continue;
                         }
                     }
 
@@ -118,8 +118,10 @@ public class Host implements Runnable {
                     //  new player
                     String[] data2 = {handler.playerAlias, String.valueOf(50100)};
                     for (int i = 0; i < players.size(); i++) {
+                        if (players.get(i).playerAlias.equals(hostingPlayer.playerAlias)) continue;
                         players.get(i).sendMsg("CONNECT", data2);
                     }
+                    recvReplies("CONNECT");
 
                     // Add player to list and look for a new player
                     players.add(handler);
@@ -423,10 +425,12 @@ public class Host implements Runnable {
          * @param data The data for the body
          */
         public void sendMsg(String msgType, String[] data) {
-            System.out.println("Sending a " + msgType + " to " + this.playerAlias);
+            // System.out.println("Sending a " + msgType + " to " + this.playerAlias);
             StatusMessage message = new StatusMessage(msgType, "host");
             message.makeHeader();
             message.makeBody(data);
+            String msg = message.composeMessage();
+            // System.out.println("Sending\n------------\n" + msg + "--------------\nto " + playerAlias);
             writer.println(message.composeMessage());
         }
 
