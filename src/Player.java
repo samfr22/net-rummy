@@ -78,7 +78,7 @@ public class Player {
                 in.close();
                 Thread.sleep(4000);
             } catch (Exception e) {
-                System.out.println(e);
+                e.printStackTrace();
             }
         }
     }
@@ -126,7 +126,7 @@ public class Player {
                     try {
                         Thread.sleep(1000);
                     } catch (Exception e) {
-                        System.out.println("Sleep err: " + e);
+                        e.printStackTrace();
                     }
                 }
 
@@ -261,7 +261,7 @@ public class Player {
                 try {
                     Thread.sleep(5000);
                 } catch (Exception e) {
-                    System.out.println("Error sleeping: " + e);
+                    e.printStackTrace();
                 }
             }
         }
@@ -367,7 +367,7 @@ public class Player {
                 System.out.println("Connection made to " + hostIp);
 
                 // Start the I/O listeners
-                this.writer = new PrintWriter(socket.getOutputStream());
+                this.writer = new PrintWriter(socket.getOutputStream(), true);
                 this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 listen = new Thread(new Listener());
                 
@@ -392,11 +392,12 @@ public class Player {
                 this.listen.start();
 
             } catch (Exception e) {
-                System.out.println(e);
+                e.printStackTrace();
             }
         }
 
         public void sendMsg(String type, String[] data) {
+            System.out.println("Sending a " + type + " message to host");
             StatusMessage msg = new StatusMessage(type, playerAlias);
             this.curMessage = msg;
             msg.makeHeader();
@@ -557,7 +558,7 @@ public class Player {
                             writer.println(curMessage.composeMessage());
                         }
                     } catch (Exception e) {
-                        System.out.println(e);
+                        e.printStackTrace();
                     }
                 }
             }

@@ -56,7 +56,7 @@ public class Main {
                 // Start the host in the background
                 System.out.println("Starting host...");
                 Thread host = new Thread(new Host());
-                host.run();
+                host.start();
 
                 // Then connect from the client-facing player program
                 System.out.print("Enter name: ");
@@ -69,7 +69,6 @@ public class Main {
 
                 System.out.println("Connecting to host...");
                 Player player = new Player("127.0.0.1", alias);
-
                 player.run();
             } else if (gameChoice.equals("3")) {
                 break;

@@ -35,82 +35,110 @@ public class Host implements Runnable {
             Socket hosting = publicListener.accept();
 
             // Check to make sure from localhost
-            if (hosting.getInetAddress() != InetAddress.getLocalHost()) {
+            if (!hosting.getInetAddress().toString().equals("/127.0.0.1")) {
                 System.out.println("First client wasn't local host");
+                publicListener.close();
                 return;
             }
 
             // First host is valid - save information and let the host run
             this.hostingPlayer = new PlayerHandler(hosting);
+            this.players = new ArrayList<PlayerHandler>();
             players.add(hostingPlayer);
 
-            System.out.println("Hosting Player Connected. Opening lobby...");
+            // Read a CONNECT from the hosting - skip straight to alias
+            String initConnect = hostingPlayer.reader.readLine();
+            initConnect = hostingPlayer.reader.readLine();
+            hostingPlayer.playerAlias = initConnect.split(": ")[1];
+
+            System.out.println("Hosting Player: " + hostingPlayer.playerAlias + ".\nOpening lobby at " + InetAddress.getLocalHost().toString() + "...");
             lobbyPhase();
 
             // Game continues and ends from the lobby phase method
         } catch (Exception e) {
-            System.out.println(e);
+            e.printStackTrace();
         }
     }
 
-    private void lobbyPhase() {
-        try {
-            // Spin until either the max number of players has been reached or the
-            //  host tells the game to start
-            while (this.players.size() < 5 && !hostingPlayer.reader.readLine().equals("start")) {
-                Socket socket = publicListener.accept();
-                PlayerHandler handler = new PlayerHandler(socket);
-                
-                // Get the CONNECT message to verify player
-                String connect = handler.reader.readLine();
-                while (connect == null || connect.equals("")) {
-                    connect = handler.reader.readLine();
-                }
+    class Lobby implements Runnable {
+        public void run() {
+            try {
+                while (true) {
+                    Socket socket = publicListener.accept();
+                    PlayerHandler handler = new PlayerHandler(socket);
 
-                // Verify type
-                String[] pieces = connect.split("\n");
-                String msgType = pieces[0].split(": ")[1];
-                if (!msgType.equals("CONNECT")) {
-                    // Send back ERR and close connection
-                    String[] data = {"CONNECT"};
-                    handler.sendMsg("ERR", data);
-                    handler.writer.close();
-                    handler.reader.close();
-                    handler.socket.close();
-                    continue;
-                }
-                
-                // Save the player name from the sender field
-                handler.playerAlias = pieces[1].split(": ")[1];
+                    // Get the CONNECT message to verify player
+                    String connect = handler.reader.readLine();
+                    while (connect == null || connect.equals("")) {
+                        connect = handler.reader.readLine();
+                    }
 
-                // Check that no other player is using the name
-                for (int i = 0; i < players.size(); i++) {
-                    if (players.get(i).playerAlias.equals(handler.playerAlias)) {
-                        // Name in use
-                        String[] data = {"CONNECT", "Name in use"};
+                    // Verify type
+                    String[] pieces = connect.split("\n");
+                    String msgType = pieces[0].split(": ")[1];
+                    if (!msgType.equals("CONNECT")) {
+                        // Send back ERR and close connection
+                        String[] data = {"CONNECT"};
                         handler.sendMsg("ERR", data);
                         handler.writer.close();
                         handler.reader.close();
                         handler.socket.close();
                     }
+                    
+                    connect = handler.reader.readLine();
+                    pieces = connect.split(": ");
+                    // Save the player name from the sender field
+                    handler.playerAlias = pieces[1];
+
+                    // Check that no other player is using the name
+                    if (players.size() > 0) {
+                        for (int i = 0; i < players.size(); i++) {
+                            if (players.get(i).playerAlias.equals(handler.playerAlias)) {
+                                // Name in use
+                                String[] data = {"CONNECT", "Name in use"};
+                                handler.sendMsg("ERR", data);
+                                handler.writer.close();
+                                handler.reader.close();
+                                handler.socket.close();
+                            }
+                        }
+                    }
+
+                    // Send back ok
+                    String[] data = {"CONNECT"};
+                    handler.sendMsg("OK", data);
+
+                    // Send out CONNECT messages for all current players to see the
+                    //  new player
+                    String[] data2 = {handler.playerAlias, String.valueOf(50100)};
+                    for (int i = 0; i < players.size(); i++) {
+                        players.get(i).sendMsg("CONNECT", data2);
+                    }
+
+                    System.out.println("New player connected: " + handler.playerAlias);
+
+                    // Add player to list and look for a new player
+                    players.add(handler);
                 }
-
-                // Send back ok
-                String[] data = {"CONNECT"};
-                handler.sendMsg("OK", data);
-
-                // Send out CONNECT messages for all current players to see the
-                //  new player
-                String[] data2 = {handler.playerAlias, String.valueOf(50100)};
-                for (int i = 0; i < players.size(); i++) {
-                    players.get(i).sendMsg("CONNECT", data2);
-                }
-
-                // Add player to list and look for a new player
-                players.add(handler);
+            } catch (Exception e) {
+                e.printStackTrace();
             }
+        }
+    }
+
+    private void lobbyPhase() {
+        try {
+            // Start a new thread to listen for incoming requests
+            Thread listener = new Thread(new Lobby());
+            listener.start();
+
+            // Spin until either the max number of players has been reached or the
+            //  host tells the game to start
+            while (this.players.size() < 5 && !hostingPlayer.reader.readLine().equals("start"));
+
+            listener.interrupt();
         } catch (Exception e) {
-            System.out.println("Lobby error: " + e);
+            e.printStackTrace();
         }
 
         // Start the game
@@ -271,7 +299,7 @@ public class Host implements Runnable {
                 this.roundNum++;
             }
         } catch (Exception e) {
-            System.out.println("Game error: " + e);
+            e.printStackTrace();
         }
     }
 
@@ -300,7 +328,7 @@ public class Host implements Runnable {
                         nonReplied.remove(i);
                     }
                 } catch (Exception e) {
-                    System.out.println("Reply error: " + e);
+                    e.printStackTrace();
                 }
             }
         }
@@ -321,24 +349,28 @@ public class Host implements Runnable {
         return false;
     }
 
-    private void cleanUp(String winnerName) throws IOException {
-        // Send out END messages with the winner
-        String[] data = {winnerName};
-        for (int i = 0; i < numPlayers; i++) {
-            players.get(i).sendMsg("END", data);
-        }
+    private void cleanUp(String winnerName) {
+        try {
+            // Send out END messages with the winner
+            String[] data = {winnerName};
+            for (int i = 0; i < numPlayers; i++) {
+                players.get(i).sendMsg("END", data);
+            }
 
-        // Need OK messages from all players to know that the player is closing
-        recvReplies("END");
+            // Need OK messages from all players to know that the player is closing
+            recvReplies("END");
 
-        // Clean up connection for each player
-        for (int i = 0; i < players.size(); i++) {
-            PlayerHandler player = players.get(i);
-            player.reader.close();
-            player.writer.close();
-            player.socket.close();
-            players.remove(i);
-            i--;
+            // Clean up connection for each player
+            for (int i = 0; i < players.size(); i++) {
+                PlayerHandler player = players.get(i);
+                player.reader.close();
+                player.writer.close();
+                player.socket.close();
+                players.remove(i);
+                i--;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
     
@@ -363,10 +395,10 @@ public class Host implements Runnable {
         public PlayerHandler(Socket socket) {
             try {
                 this.socket = socket;
-                writer = new PrintWriter(socket.getOutputStream());
+                writer = new PrintWriter(socket.getOutputStream(), true);
                 reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             } catch (Exception e) {
-                System.out.println(e);
+                e.printStackTrace();
             }
         }
 
@@ -376,6 +408,7 @@ public class Host implements Runnable {
          * @param data The data for the body
          */
         public void sendMsg(String msgType, String[] data) {
+            System.out.println("Sending a " + msgType + " to " + this.playerAlias);
             StatusMessage message = new StatusMessage(msgType, "host");
             message.makeHeader();
             message.makeBody(data);
