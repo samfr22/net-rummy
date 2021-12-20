@@ -35,7 +35,7 @@ public class Host implements Runnable {
             Socket hosting = publicListener.accept();
 
             // Check to make sure from localhost
-            if (!hosting.getInetAddress().toString().equals("/127.0.0.1")) {
+            if (!hosting.getInetAddress().toString().equals("/" + InetAddress.getLocalHost().getHostAddress())) {
                 System.out.println("First client wasn't local host");
                 publicListener.close();
                 return;
@@ -51,8 +51,13 @@ public class Host implements Runnable {
             initConnect = hostingPlayer.reader.readLine();
             hostingPlayer.playerAlias = initConnect.split(": ")[1];
 
+            System.out.println("Opening lobby at " + InetAddress.getLocalHost().toString() + "...\n");
             hostingPlayer.clearReader();
-            System.out.println("Host Connected.\nOpening lobby at " + InetAddress.getLocalHost().toString() + "...\n");
+
+            // Send back an OK for the hosting player
+            String[] data = {"CONNECT"};
+            hostingPlayer.sendMsg("OK", data);
+
             lobbyPhase();
 
             // Game continues and ends from the lobby phase method
@@ -118,10 +123,15 @@ public class Host implements Runnable {
                     //  new player
                     String[] data2 = {handler.playerAlias, String.valueOf(50100)};
                     for (int i = 0; i < players.size(); i++) {
+                        // Prevents issues with the host accessing the same input stream
                         if (players.get(i).playerAlias.equals(hostingPlayer.playerAlias)) continue;
+
                         players.get(i).sendMsg("CONNECT", data2);
                     }
                     recvReplies("CONNECT");
+
+                    // For hosting player
+                    System.out.println("New player connected: " + handler.playerAlias);
 
                     // Add player to list and look for a new player
                     players.add(handler);
@@ -141,9 +151,13 @@ public class Host implements Runnable {
             // Spin until either the max number of players has been reached or the
             //  host tells the game to start
             while (this.players.size() < 5) {
-                Thread.sleep(10000);
                 // Check if the host player has told it to start
-                if (hostingPlayer.reader.readLine().equals("start")) {
+                String hostingPlayerMsg = hostingPlayer.reader.readLine();
+                if (hostingPlayerMsg == null || hostingPlayerMsg.equals("")) continue;
+
+                System.out.println("Host player sent: " + hostingPlayerMsg);
+                if (hostingPlayerMsg.equals("start")) {
+                    System.out.println("Received start command");
                     break;
                 }
             }

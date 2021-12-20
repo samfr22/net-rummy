@@ -1,6 +1,7 @@
 package src;
 
 import java.util.Scanner;
+import java.net.InetAddress;
 
 /**
  * Author: Samuel Fritz
@@ -68,7 +69,14 @@ public class Main {
                 }
 
                 System.out.println("Connecting to host...");
-                Player player = new Player("127.0.0.1", alias, true);
+                String address = null;
+                try {
+                    address = InetAddress.getLocalHost().getHostAddress();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                Player player = new Player(address, alias, true);
+                System.out.println("Starting player thread");
                 player.run();
             } else if (gameChoice.equals("3")) {
                 break;

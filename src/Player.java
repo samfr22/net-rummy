@@ -11,7 +11,7 @@ import java.io.*;
  * The program to handle player actions and connecting to an existing host
  * lobby
  */
-public class Player {
+public class Player implements Runnable {
 
     class OtherPlayer {
         int numPoints;
@@ -43,6 +43,7 @@ public class Player {
         this.isHost = host;
         if (this.communicator == null) {
             // Denied access to game
+            System.out.println("Player creation failed");
             return;
         }
         this.otherPlayers = new ArrayList<OtherPlayer>();
@@ -360,7 +361,7 @@ public class Player {
         private Socket socket;
         private PrintWriter writer;
         private BufferedReader reader;
-        private Thread listen;
+        private Thread listen = new Thread(new Listener());
         private StatusMessage curMessage;
 
         public Communicator(String ip, String alias) {
@@ -373,7 +374,6 @@ public class Player {
                 // Start the I/O listeners
                 this.writer = new PrintWriter(socket.getOutputStream(), true);
                 this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                listen = new Thread(new Listener());
                 
                 // Send a CONNECT message to get approval to join the lobby
                 String[] data = {ip, "50100"};
@@ -396,13 +396,13 @@ public class Player {
                     this.writer.close();
                     this.socket.close();
                     communicator = null;
+                    listen = null;
                     return;
                 }
 
                 clearReader();
 
-                this.listen.start();
-
+                listen.start();
             } catch (Exception e) {
                 e.printStackTrace();
             }
