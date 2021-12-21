@@ -1,6 +1,7 @@
 package src;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.net.*;
 import java.io.*;
 
@@ -24,6 +25,7 @@ public class Host implements Runnable {
     private CardPile discardPile;
     private int whoseTurn;
     private int roundNum;
+    private final int POINTS_TO_WIN = 100;
 
     public void run() {
         try {
@@ -190,7 +192,7 @@ public class Host implements Runnable {
                 ArrayList<PlayerHandler> winningPlayers = new ArrayList<PlayerHandler>();
                 for (int i = 0; i < numPlayers; i++) {
                     PlayerHandler player = players.get(i);
-                    if (player.numPoints >= 500) {
+                    if (player.numPoints >= POINTS_TO_WIN) {
                         winningPlayers.add(player);
                     }
                     scores += player.playerAlias + " - " + player.numPoints + ", ";
@@ -241,7 +243,8 @@ public class Host implements Runnable {
 
                 // Enter round loop
                 PlayerHandler curPlayer = players.get(whoseTurn);
-                while (!outOfCards()) {
+                boolean roundRun = true;
+                while (roundRun) {
                     curPlayer.clearReader();
                     // Look for the deck/discard pile taking
                     String action = curPlayer.reader.readLine();
@@ -310,8 +313,22 @@ public class Host implements Runnable {
                     action = curPlayer.reader.readLine();
 
                     // Get all of the cards in the player's hand
+
+                    if (outOfCards()) {
+                        roundRun = false;
+                        curPlayer.clearReader();
+                        continue;
+                    }
+
                     curPlayer.heldCards.clear();
-                    String[] hand = action.split(": ")[1].split(", ");
+                    String[] handMsg = action.split(": ");
+                    if (handMsg.length == 1) {
+                        roundRun = false;
+                        curPlayer.clearReader();
+                        continue;
+                    }
+                    String[] hand = handMsg[1].split(", ");
+
                     for (int i = 0; i < hand.length; i++) {
                         String[] card = hand[i].split(" of ");
                         curPlayer.heldCards.add(new Card(card[1], card[0].charAt(0)));

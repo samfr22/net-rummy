@@ -99,10 +99,9 @@ public class Player implements Runnable {
                 System.out.println(self.name + ", What would you like to do?");
                 System.out.println("(T)ake a card from the deck");
                 System.out.println("(P)ick a card from the discard pile");
-                System.out.println("(L)ist your melds");
                 String action = input.nextLine();
 
-                while (!action.equals("T") && !action.equals("P") && !action.equals("L")) {
+                while (!action.equals("T") && !action.equals("P")) {
                     System.out.println("Invalid action - try again:");
                     action = input.nextLine();
                 }
@@ -114,7 +113,7 @@ public class Player implements Runnable {
                     this.communicator.sendMsg("TURN", data);
                 } else if (action.equals("P")) {
 
-                    System.out.println("Position in discard to pull from: ");
+                    System.out.println("Position in discard to pull from (Zero-indexed): ");
                     // Need a position in the discard pile to take from
                     String discardPos = input.nextLine();
                     while (discardPos.equals("") || Integer.valueOf(discardPos) < 0) {
@@ -124,12 +123,6 @@ public class Player implements Runnable {
 
                     String[] data = {"P", discardPos};
                     this.communicator.sendMsg("TURN", data);
-                } else {
-                    System.out.println("Your melds:\n----------------");
-                    for (int i = 0; i < sets.size(); i++) {
-                        System.out.println(sets.get(i).toString());
-                    }
-                    System.out.println("----------------------------------");
                 }
 
                 // Check the buffer to be filled by the listener - once filled,
@@ -156,11 +149,12 @@ public class Player implements Runnable {
                     System.out.println("Your hand: " + Arrays.toString(hand.toArray()));
                     System.out.println("(S)et down a new meld");
                     System.out.println("(A)dd a card to an existing meld");
+                    System.out.println("(L)ist your melds");
                     System.out.println("(D)iscard and end your turn");
 
                     action = input.nextLine();
 
-                    while (!action.equals("S") && !action.equals("D") && !action.equals("A")) {
+                    while (!action.equals("S") && !action.equals("D") && !action.equals("A") && !action.equals("L")) {
                         System.out.println("Invalid action - try again:");
                         action = input.nextLine();
                     }
@@ -197,12 +191,19 @@ public class Player implements Runnable {
                             for (int i = 0; i < setCards.length; i++) {
                                 buffer.add(setCards[i]);
                             }
-                            buffer.add(meldCard);
+                            // If the rank of the last card in the set is larger,
+                            //  add it to the other side
+                            if (meldCard.getRankNum() > buffer.get(buffer.size() - 1).getRankNum()) {
+                                buffer.add(0, meldCard);
+                            } else {
+                                buffer.add(meldCard);
+                            }
 
                             if (isValidMeld()) {
                                 // Meld is valid - add card officially to the set
                                 sets.get(whichSet).addCard(meldCard);
                                 Card[] temp = {meldCard};
+                                hand.remove(meldCard);
                                 self.numPoints += Card.computePoints(temp);
                             } else {
                                 System.out.println("Invalid meld");
@@ -261,6 +262,16 @@ public class Player implements Runnable {
                             continue;
                         }
 
+                    } else if (action.equals("L")) {
+                        System.out.println("Your melds:\n----------------");
+                        if (sets.size() == 0) {
+                            System.out.println("You have no melds");
+                            continue;
+                        }
+                        for (int i = 0; i < sets.size(); i++) {
+                            System.out.println(sets.get(i).toString());
+                        }
+                        System.out.println("----------------------------------");
                     } else if (action.equals("D")) {
                         // Discarding a card and ending turn
                         System.out.println("Discarding a card - Input card in <Rank> of <Suit> format");
